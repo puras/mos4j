@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-tool</artifactId>
+  <name>MoS4J :: Tool</name>
+  <description>工具抽象、注解+反射 Schema（失败 fail-closed）与工具注册表；正则一律 RE2J</description>
+  <dependencies>
+    <!-- 技能审计接口（SkillAudit）在 core：显式声明，不靠 llm 的传递依赖 -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-llm</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 内置文件工具走 file jail + 写前观察门；shell 工具走沙箱 -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-fs</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-sandbox</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- grep / glob 的模式来自模型 = 不可信输入：禁用回溯引擎，一律 RE2J -->
+    <dependency>
+      <groupId>com.google.re2j</groupId>
+      <artifactId>re2j</artifactId>
+      <version>${re2j.version}</version>
+    </dependency>
+    <!-- Schema / 参数容错直接用 Jackson（不靠传递依赖） -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>${jackson.annotations.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <!-- 技能 frontmatter 是 YAML：用现成库（Jackson YAML 模块 → SnakeYAML Engine），
+         不自创「最小 YAML 子集」——那等于拿技能的元数据解析去赌一个自写的词法器。 -->
+    <dependency>
+      <groupId>tools.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+  </dependencies>
+</project>

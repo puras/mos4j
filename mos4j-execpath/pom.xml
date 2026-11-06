@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-execpath</artifactId>
+  <name>MoS4J :: ExecPath</name>
+  <description>工具调用编排：守卫→钩子→冻结检查→执行→回填（载荷冻结 M1、回填序 M2、错误单向 M3、fail-closed I1）</description>
+  <dependencies>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-llm</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-tool</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-hook</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 工具参数快照序列化（直接用 Jackson） -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+  </dependencies>
+</project>

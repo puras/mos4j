@@ -1,0 +1,4 @@
+# O5b 只有 [DONE] 也完整（真实网关形态）— 照抄 Go TestChatStreamWithDoneOnlyIsComplete（openai_test.go:403）
+# 断言：流完整（结束标记即完整，M5 对称用例）；content="回答"
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"回答"}}]}
+data: [DONE]

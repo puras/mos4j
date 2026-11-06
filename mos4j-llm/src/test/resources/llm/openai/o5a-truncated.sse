@@ -1,0 +1,3 @@
+# O5a 真截断 — 照抄 Go TestChatStreamTruncatedErrors（openai_test.go:382）
+# 断言：无 finish_reason、无 [DONE] → StreamTruncatedException
+data: {"choices":[{"delta":{"content":"半截回答"}}]}

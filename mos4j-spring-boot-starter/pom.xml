@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  mos4j-spring-boot-starter —— Spring Boot 自动装配（按需模块）。
+
+  定位：Spring 只需要出现在这里（依赖纪律 I7：SDK 十二模块的运行时依赖只有 Jackson / RE2J / JDK）。
+  默认不进默认 reactor：用 ./mvnw -Pstarter verify 单独构建。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>mos4j-spring-boot-starter</artifactId>
+  <name>MoS4J :: Spring Boot Starter</name>
+  <description>Spring Boot 自动装配：属性化装配 ChatModel / 工具面 / 持久化 / 审批通道</description>
+
+  <dependencies>
+    <!-- SDK 门面：一次依赖拿到全部 SDK 模块（starter 只做装配，不重复实现语义） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-sdk</artifactId>
+    </dependency>
+    <!--
+      下面这些是 starter 直接引用的模块：依赖纪律要求「用到的就直接声明」，
+      不靠 mos4j-sdk 传递过来（传递依赖当契约 = 宿主换依赖时静默断链）。
+      门面仍然给宿主「一次依赖拿到全部」——那是给使用者的承诺，不是本模块的省事做法。
+    -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-llm</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-tool</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-session</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-context</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-fs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-hook</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-driver</artifactId>
+    </dependency>
+    <!-- @ConfigurationProperties / 基础容器类型 -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot</artifactId>
+    </dependency>
+    <!-- @AutoConfiguration / @ConditionalOn* -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+    </dependency>
+    <!-- 显式声明：代码里直接用到这两个包（ObjectProvider / Environment），不能靠传递依赖 -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-beans</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-core</artifactId>
+    </dependency>
+    <!-- @Bean / @Configuration 在 spring-context（不靠传递依赖） -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+    <!-- 配置元数据生成器不放依赖里：JDK 23 起 javac 不再从 classpath 自动加载注解处理器，
+         改由 maven-compiler-plugin 的 annotationProcessorPaths 显式给（见 build 段）。
+         不放依赖是为了不把一个只在编译期有用的构件带进宿主类路径。 -->
+
+    <!-- 测试：ApplicationContextRunner（自动装配的最小可测面） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- spring-boot-test 的公开 API 里出现 AssertJ 类型（AssertProvider），编译期就要它在类路径上 -->
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <!--
+            父 POM 的依赖纪律门（禁 Spring / Guava / ORM / Lombok / SLF4J）对 SDK 十二模块生效。
+            starter 是唯一允许出现 Spring 的地方——但这里**不是**把整条门关掉
+            （那等于顺手放开了 Guava / ORM / Lombok / SLF4J），而是把门改窄：
+            只放行 Spring，其余禁令照旧（starter 同样没有理由用它们）。
+            combine.self="override"：确保父 POM 的规则整块被替换，不与其合并。
+          -->
+          <execution>
+            <id>enforce-runtime-dependency-discipline</id>
+            <configuration>
+              <rules combine.self="override">
+                <bannedDependencies>
+                  <excludes>
+                    <exclude>com.google.guava*</exclude>
+                    <exclude>org.projectlombok*</exclude>
+                    <exclude>org.hibernate*</exclude>
+                    <exclude>org.mybatis*</exclude>
+                    <exclude>ch.qos.logback*</exclude>
+                    <exclude>org.slf4j*</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!--
+            配置元数据生成器（IDE 里写 mos4j.* 有提示，靠的就是它生成的
+            META-INF/spring-configuration-metadata.json）。
+            JDK 23 起 javac 不再从 classpath 自动加载注解处理器，必须显式给路径。
+          -->
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-configuration-processor</artifactId>
+              <version>${spring-boot.version}</version>
+            </path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <configuration>
+          <ignoredUnusedDeclaredDependencies combine.children="append">
+            <!-- 编译期必需：spring-boot-test 的公开 API 暴露 AssertJ 类型（AssertProvider），
+                 我们的测试代码本身不引用它，但少一个类就编译不过。 -->
+            <ignoredUnusedDeclaredDependency>org.assertj:assertj-core</ignoredUnusedDeclaredDependency>
+          </ignoredUnusedDeclaredDependencies>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

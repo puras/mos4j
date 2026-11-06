@@ -1,0 +1,8 @@
+# A9 分项和=总计（Anthropic 口径自洽）— 照抄 Go TestChatStreamUsagePartsSumToTotal（anthropic_test.go:609）
+# 断言：freshInput(900) + cacheRead(186) + cacheWrite(3) + completion(84) == total == 1173
+data: {"type":"message_start","message":{"role":"assistant","usage":{"input_tokens":900,"cache_creation_input_tokens":3,"cache_read_input_tokens":186,"output_tokens":0}}}
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}
+data: {"type":"content_block_stop","index":0}
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":900,"output_tokens":84}}
+data: {"type":"message_stop"}

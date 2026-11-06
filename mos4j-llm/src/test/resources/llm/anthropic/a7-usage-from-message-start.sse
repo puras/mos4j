@@ -1,0 +1,7 @@
+# A7 usage 来自 message_start — 照抄 Go TestChatStreamUsageFromMessageStart（anthropic_test.go:540）
+# 断言：prompt=10; cacheRead=3, cacheWrite=2; total=15（Anthropic 口径 total 含缓存）
+data: {"type":"message_start","message":{"role":"assistant","usage":{"input_tokens":10,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":0}}}
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"回答"}}
+data: {"type":"content_block_stop","index":0}
+data: {"type":"message_stop"}

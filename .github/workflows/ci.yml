@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [ '25' ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Build + test (C1)
+        run: ./mvnw -B verify
+
+      # C2a 依赖纪律门禁（禁 Spring / Guava / ORM / Lombok / SLF4J 进 SDK 运行时）
+      # 父 POM 的 maven-enforcer-plugin 在 verify 里已经执行；这里只标出它在流水线中的位置。
+      # 验收：故意加一个违规依赖 → 本步与 verify 同时变红。
+
+      # C3 模块边界检查：能力层不得 import 驱动层/装配层；日志与协议必须共用同一批值类型。
+      # 该门在 mos4j-sdk 的 BoundaryRulesTest 里（verify 已含）；这里显式单跑一次，便于定位。
+      - name: Module boundary check (C3)
+        run: >
+          ./mvnw -B -pl mos4j-sdk -am test
+          -Dtest=BoundaryRulesTest -Dsurefire.failIfNoSpecifiedTests=false
+
+      # C6 源码扫描：SDK 模块不得 import Spring；正则一律 RE2J
+      # 显式列出 12 个 SDK 模块——不能用 mos4j-*/src/main 通配：
+      # 按需模块 mos4j-spring-boot-starter 允许出现 Spring（那是它存在的意义）。
+      - name: Source discipline scan (C6)
+        run: |
+          SDK_MODULES="mos4j-core mos4j-llm mos4j-fs mos4j-sandbox mos4j-tool mos4j-session mos4j-hook mos4j-execpath mos4j-context mos4j-driver mos4j-policy mos4j-sdk"
+          PATHS=""
+          for m in $SDK_MODULES; do PATHS="$PATHS $m/src/main"; done
+          ! grep -rn "import org.springframework" --include="*.java" $PATHS
+          ! grep -rn "import java.util.regex" --include="*.java" $PATHS
+
+      # C2b 依赖声明与使用一致（只用直接依赖，不靠传递依赖）
+      # 12 个模块全部扫（含 sdk：门面与 CLI 已有实现）
+      - name: Dependency hygiene (C2b)
+        run: >
+          ./mvnw -B -am
+          -pl mos4j-core,mos4j-llm,mos4j-fs,mos4j-sandbox,mos4j-tool,mos4j-session,mos4j-hook,mos4j-execpath,mos4j-context,mos4j-driver,mos4j-policy,mos4j-sdk
+          dependency:analyze -Dmdep.analyze.failOnWarning=true
+
+      # C4 字段名守护 + C5 语料完整性已含在 verify 的测试里（FieldNameContractTest / L1CorpusIntegrityTest）
+
+  # 按需模块（starter）：独立 job——默认 reactor 不含它，用 -Pstarter 带上。
+  # 它不进默认 verify 流水线，因为默认流水线守的是 SDK 依赖纪律（禁 Spring）。
+  starter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # 按需模块：Spring Boot starter（默认 reactor 不含它，用 -Pstarter 带上）
+      - name: Build + test (starter)
+        run: ./mvnw -B -Pstarter verify

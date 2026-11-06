@@ -1,0 +1,7 @@
+# A5 只有 message_stop 也完整（内网网关形态）— 照抄 Go TestChatStreamWithoutMessageDeltaIsComplete（anthropic_test.go:485）
+# 断言：流完整（结束标记即完整，M5）；content="回答"; finishReason=""（未知≠截断）
+data: {"type":"message_start","message":{"role":"assistant","usage":{"input_tokens":10}}}
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"回答"}}
+data: {"type":"content_block_stop","index":0}
+data: {"type":"message_stop"}

@@ -1,0 +1,5 @@
+# A6 无任何结束信号 — 照抄 Go TestChatStreamCutWithoutAnyEndSignalErrors（anthropic_test.go:516）
+# 断言：两者皆无 → StreamTruncatedException（M5）
+data: {"type":"message_start","message":{"role":"assistant"}}
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"半截"}}

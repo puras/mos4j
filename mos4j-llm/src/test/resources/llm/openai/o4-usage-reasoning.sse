@@ -1,0 +1,12 @@
+# O4 usage + reasoning 明细 — 照抄 Go TestChatStreamUsage（openai_test.go:308）
+# 断言：total=13; details.output.reasoning=2; finishReason=stop
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"hi"}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13,"completion_tokens_details":{"reasoning_tokens":2}}}
+
+data: [DONE]
+

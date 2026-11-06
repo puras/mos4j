@@ -1,0 +1,8 @@
+# G1 文本流基础 — 照抄 Go TestChatStream（llm/gemini/gemini_test.go:93）
+# 断言：content="Hello world"; deltas 拼接一致; finishReason=STOP; usage.total=8
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]},"finishReason":""}]}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":" world"}]},"finishReason":"STOP"}]}
+
+data: {"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":3,"totalTokenCount":8}}
+

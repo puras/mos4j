@@ -1,0 +1,5 @@
+# A4 真截断（2026-10 事故回归）— 照抄 Go TestChatStreamTruncatedErrors（anthropic_test.go:388）
+# 断言：无 message_delta / message_stop → StreamTruncatedException（不能把半截聚合当正常响应）
+data: {"type":"message_start","message":{"role":"assistant"}}
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"半截回答"}}

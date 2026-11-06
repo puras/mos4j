@@ -1,0 +1,10 @@
+# A10 delta 赢过 start（真实事故回归：内网 MiniMax Anthropic 兼容路由）— 照抄 Go TestChatStreamUsageDeltaWinsOverStart（anthropic_test.go:651）
+# message_start {input:925, cache_read:1113}；message_delta {output:194, cache_read:188}
+# 1113 = 925(新鲜) + 188(命中) = 总输入 → 正确读法：命中 188、freshInput=925、total=1307（925+188+194）
+# 读反了会得到命中 1113、total=2232——对不上账。
+data: {"type":"message_start","message":{"role":"assistant","usage":{"input_tokens":925,"cache_creation_input_tokens":0,"cache_read_input_tokens":1113,"output_tokens":0}}}
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}
+data: {"type":"content_block_stop","index":0}
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":194,"cache_read_input_tokens":188}}
+data: {"type":"message_stop"}

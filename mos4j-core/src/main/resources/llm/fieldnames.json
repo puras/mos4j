@@ -1,0 +1,593 @@
+{
+  "_comment": "MoS4J 事件与载荷字段名冻结清单（T0.4 一次性抽取自 Go 参考仓库，之后不随 Go 演进重抽）。守护测试 FieldNameContractTest 的基线。；J7 追加 skill 载荷 5 条（skill/name/description/dir/missingAllowed），经批准并入",
+  "_source": "参考仓库 ../mos（只读）；范围：session/*.go, llm/model.go, agent/hook/*.go, agent/approval/*.go",
+  "_extracted": "2026-11-03",
+  "_count": 80,
+  "_names_sha256": "3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c",
+  "fields": [
+    {
+      "file": "llm/model.go",
+      "tag": "args",
+      "name": "args",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "audio,omitempty",
+      "name": "audio",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "cache_read,omitempty",
+      "name": "cache_read",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "cache_write,omitempty",
+      "name": "cache_write",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "completion_tokens",
+      "name": "completion_tokens",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "content,omitempty",
+      "name": "content",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "content_parts,omitempty",
+      "name": "content_parts",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "data,omitempty",
+      "name": "data",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "description",
+      "name": "description",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "details,omitempty",
+      "name": "details",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "finish_reason,omitempty",
+      "name": "finish_reason",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "fresh_input_tokens,omitempty",
+      "name": "fresh_input_tokens",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "id",
+      "name": "id",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "input,omitempty",
+      "name": "input",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "max_tokens,omitempty",
+      "name": "max_tokens",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "message",
+      "name": "message",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "messages",
+      "name": "messages",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "mime_type,omitempty",
+      "name": "mime_type",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "modalities,omitempty",
+      "name": "modalities",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "name",
+      "name": "name",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "output,omitempty",
+      "name": "output",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "parameters",
+      "name": "parameters",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "prompt_tokens",
+      "name": "prompt_tokens",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "reasoning,omitempty",
+      "name": "reasoning",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "reasoning_content,omitempty",
+      "name": "reasoning_content",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "reasoning_effort,omitempty",
+      "name": "reasoning_effort",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "response_format,omitempty",
+      "name": "response_format",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "role",
+      "name": "role",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "schema,omitempty",
+      "name": "schema",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "temperature,omitempty",
+      "name": "temperature",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "text,omitempty",
+      "name": "text",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "tool_call_id,omitempty",
+      "name": "tool_call_id",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "tool_calls,omitempty",
+      "name": "tool_calls",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "tools,omitempty",
+      "name": "tools",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "total_tokens",
+      "name": "total_tokens",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "type",
+      "name": "type",
+      "options": []
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "url,omitempty",
+      "name": "url",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "llm/model.go",
+      "tag": "usage",
+      "name": "usage",
+      "options": []
+    },
+    {
+      "file": "session/persistence.go",
+      "tag": "createdAt",
+      "name": "createdAt",
+      "options": []
+    },
+    {
+      "file": "session/persistence.go",
+      "tag": "cwd,omitempty",
+      "name": "cwd",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/persistence.go",
+      "tag": "id",
+      "name": "id",
+      "options": []
+    },
+    {
+      "file": "session/persistence.go",
+      "tag": "parentId,omitempty",
+      "name": "parentId",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/persistence.go",
+      "tag": "seedSeq,omitempty",
+      "name": "seedSeq",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/persistence.go",
+      "tag": "title,omitempty",
+      "name": "title",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "approval,omitempty",
+      "name": "approval",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "callId,omitempty",
+      "name": "callId",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "compaction,omitempty",
+      "name": "compaction",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "content",
+      "name": "content",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "description,omitempty",
+      "name": "description",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "dir,omitempty",
+      "name": "dir",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "error,omitempty",
+      "name": "error",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "firstKeptSeq",
+      "name": "firstKeptSeq",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "id",
+      "name": "id",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "isError,omitempty",
+      "name": "isError",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "kind",
+      "name": "kind",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "missingAllowed,omitempty",
+      "name": "missingAllowed",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "name",
+      "name": "name",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "outcome,omitempty",
+      "name": "outcome",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "reason,omitempty",
+      "name": "reason",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "reasoning,omitempty",
+      "name": "reasoning",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "seq",
+      "name": "seq",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "skill,omitempty",
+      "name": "skill",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "summary",
+      "name": "summary",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "text,omitempty",
+      "name": "text",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "time",
+      "name": "time",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "tokensBefore,omitempty",
+      "name": "tokensBefore",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "toolCall,omitempty",
+      "name": "toolCall",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "toolCalls,omitempty",
+      "name": "toolCalls",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "toolName",
+      "name": "toolName",
+      "options": []
+    },
+    {
+      "file": "session/session.go",
+      "tag": "toolResult,omitempty",
+      "name": "toolResult",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "turn,omitempty",
+      "name": "turn",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "usage,omitempty",
+      "name": "usage",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/state.go",
+      "tag": "blocked,omitempty",
+      "name": "blocked",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/state.go",
+      "tag": "evidence,omitempty",
+      "name": "evidence",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/state.go",
+      "tag": "facts,omitempty",
+      "name": "facts",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/state.go",
+      "tag": "goal",
+      "name": "goal",
+      "options": []
+    },
+    {
+      "file": "session/state.go",
+      "tag": "pending,omitempty",
+      "name": "pending",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/state.go",
+      "tag": "status",
+      "name": "status",
+      "options": []
+    },
+    {
+      "file": "session/state.go",
+      "tag": "summary",
+      "name": "summary",
+      "options": []
+    },
+    {
+      "file": "session/state.go",
+      "tag": "tool",
+      "name": "tool",
+      "options": []
+    }
+  ]
+}

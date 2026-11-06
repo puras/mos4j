@@ -1,0 +1,28 @@
+# 构建产物
+target/
+*.class
+*.jar
+*.war
+
+# 本地 Maven 仓库（本项目用 -Dmaven.repo.local=.m2repo，沙箱内不能写 ~/.m2）
+.m2repo/
+
+# Maven Wrapper 下载的发行版
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# 系统与工具产物
+.DS_Store
+*.log
+.gocache/
+.tmp/
+.mos-trunc/

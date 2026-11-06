@@ -1,0 +1,10 @@
+# O1 文本流基础 — 照抄 Go TestChatStream（llm/openai/openai_test.go:71）
+# 断言：content="Hello world"; deltas 拼接一致; finishReason=stop
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hello"}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":"stop"}]}
+
+data: [DONE]
+

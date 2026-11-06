@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-driver</artifactId>
+  <name>MoS4J :: Driver</name>
+  <description>回合驱动（ReAct 等）：编排 session + execpath 的轮转</description>
+  <dependencies>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-llm</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-session</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-tool</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-execpath</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 双轨制：守卫 / 钩子 / 审批通道（装配入口直接暴露这些类型） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-hook</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- J3：Describe 快照要报文件边界与沙箱边界的事实（由 fs / sandbox 模块自己掌握） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-fs</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- J4：输出限流与上下文压缩（截断、落盘、压缩服务） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-context</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-sandbox</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 测试里直接解析工具参数（不靠传递依赖） -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- 审批审计类型（core）与测试里的 CancellationToken -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+</project>

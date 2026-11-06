@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MoS4J — 参考 MoS 的 Java 智能体基础框架（SDK 本体；starter 按需见任务列表 §10）
+  契约：docs/contract/{INVARIANTS,MECHANISMS,API}.md + fieldnames.json（冻结清单）
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>net.hegq</groupId>
+  <artifactId>mos4j</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>MoS4J</name>
+  <description>MoS4J: Java reimplementation of the MoS agent framework (reference semantics, SDK-first)</description>
+  <url>https://github.com/puras/mos4j</url>
+
+  <modules>
+    <module>mos4j-core</module>
+    <module>mos4j-llm</module>
+    <module>mos4j-tool</module>
+    <module>mos4j-session</module>
+    <module>mos4j-driver</module>
+    <module>mos4j-execpath</module>
+    <module>mos4j-hook</module>
+    <module>mos4j-policy</module>
+    <module>mos4j-fs</module>
+    <module>mos4j-sandbox</module>
+    <module>mos4j-context</module>
+    <module>mos4j-sdk</module>
+    <!-- mos4j-spring-boot-starter：按需（见 docs/mos4j-tasks.md §10），不进默认构建 -->
+  </modules>
+
+  <properties>
+    <!-- 编译与运行时目标：JDK 25 -->
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- 运行时依赖版本（依赖纪律 I7：SDK 只允许 Jackson 家族 / RE2J / JDK） -->
+    <!-- Jackson 3：databind/core 换坐标与包名（tools.jackson.*），但注解构件仍是
+         com.fasterxml.jackson.core 的 2.x 线——注解不随 databind 大版本走，单独钉版本。 -->
+    <jackson.version>3.2.4</jackson.version>
+    <jackson.annotations.version>2.22</jackson.annotations.version>
+    <!-- YAML 前置（技能 frontmatter 用）：Jackson 3 的 YAML 模块传递依赖 snakeyaml-engine，
+         这里集中钉版本，避免各模块各写一份。YAML 只经由 jackson-dataformat-yaml 引入，
+         不直接用 snakeyaml-engine 的 API（那是实现细节）。 -->
+    <snakeyaml.version>3.0.1</snakeyaml.version>
+    <re2j.version>1.7</re2j.version>
+
+    <!-- 测试依赖版本 -->
+    <junit.version>5.11.4</junit.version>
+
+    <!-- Spring Boot 版本（只供按需模块 mos4j-spring-boot-starter 使用；
+         SDK 十二模块不依赖 Spring——依赖纪律 I7） -->
+    <spring-boot.version>3.5.16</spring-boot.version>
+
+    <!-- 构建插件版本 -->
+    <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+    <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
+    <maven.enforcer.plugin.version>3.5.0</maven.enforcer.plugin.version>
+    <!-- 3.7.0 / 3.8.1 的 ASM 不认 class file 69（JDK 25），analyze 会直接报错；
+         3.9.0 是第一个能读 JDK 25 字节码的版本。 -->
+    <maven.dependency.plugin.version>3.9.0</maven.dependency.plugin.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>tools.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <!-- 注解包不迁移：Jackson 3 继续用 com.fasterxml.jackson.annotation（2.x 线） -->
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-annotations</artifactId>
+        <version>${jackson.annotations.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>tools.jackson.core</groupId>
+        <artifactId>jackson-core</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+      <!-- YAML 数据格式模块（Jackson 3）：技能 frontmatter 解析用。
+           它传递引入 org.snakeyaml:snakeyaml-engine——属于依赖纪律 I7 允许的「SnakeYAML 系」。 -->
+      <dependency>
+        <groupId>tools.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-yaml</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.snakeyaml</groupId>
+        <artifactId>snakeyaml-engine</artifactId>
+        <version>${snakeyaml.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.re2j</groupId>
+        <artifactId>re2j</artifactId>
+        <version>${re2j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Spring Boot BOM：只给按需的 starter 模块用（依赖管理，不是依赖） -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- 模块间（compile 期互相可见，运行时同 groupId 合并发布） -->
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-llm</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-tool</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-fs</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-context</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-hook</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-driver</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-session</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-sdk</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- 全模块测试基座 -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- 显式声明 api：aggregator 只是为了带 engine，analyze 看不到直接引用 -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven.compiler.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${maven.surefire.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <version>${maven.enforcer.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>${maven.dependency.plugin.version}</version>
+          <configuration>
+            <!-- aggregator 只为带 engine，不算“声明了却没用” -->
+            <ignoredUnusedDeclaredDependencies>
+              <ignoredUnusedDeclaredDependency>org.junit.jupiter:junit-jupiter</ignoredUnusedDeclaredDependency>
+            </ignoredUnusedDeclaredDependencies>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven.enforcer.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>enforce-runtime-dependency-discipline</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <excludes>
+                    <!-- I7 依赖纪律：SDK 运行时只允许 Jackson 家族 / RE2J / JDK -->
+                    <exclude>org.springframework*</exclude>
+                    <exclude>com.google.guava*</exclude>
+                    <exclude>org.projectlombok*</exclude>
+                    <exclude>org.hibernate*</exclude>
+                    <exclude>org.mybatis*</exclude>
+                    <exclude>ch.qos.logback*</exclude>
+                    <exclude>org.slf4j*</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      按需模块：Spring Boot starter。
+      默认不进 reactor（SDK 优先：非 Spring 宿主不该被拖入 Spring）。
+      构建/测试它：./mvnw -Pstarter verify
+    -->
+    <profile>
+      <id>starter</id>
+      <modules>
+        <module>mos4j-spring-boot-starter</module>
+      </modules>
+    </profile>
+  </profiles>
+</project>

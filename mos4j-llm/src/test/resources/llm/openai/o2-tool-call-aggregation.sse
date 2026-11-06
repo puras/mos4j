@@ -1,0 +1,12 @@
+# O2 tool_calls 按 index 累加 — 照抄 Go TestChatStreamToolCallAggregation（openai_test.go:105）
+# 断言：id=call_1; name=calculator; args='{"a":1,"b":2}'（按 index 分片累加）; finishReason=tool_calls
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"calculator","arguments":""}}]}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"a\":1"}}]}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\"b\":2}"}}]}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: [DONE]
+
