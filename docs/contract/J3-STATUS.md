@@ -1,5 +1,7 @@
 # J3 推进状态（文件与沙箱）
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../../README.md) 与 [`docs/contract/API.md`](API.md)。
+
 > 更新：2026-11-05。J3 = 文件 jail + 写前观察门 + 命令沙箱 + 路径强制 + 降级声明（任务列表 §5）。
 > 配套：[任务列表](../mos4j-tasks.md)、[推进方案](../mos4j-execution.md)、[契约目录](.)、[J1 状态](J1-STATUS.md)、[J2 状态](J2-STATUS.md)。
 
@@ -23,7 +25,7 @@
 | mos4j-sandbox | `sandbox/LocalRunner.java` | 本地运行器：宿主固定工作目录、超时上界、输出上限、环境白名单裁剪 |
 | mos4j-sandbox | `sandbox/ResourceLimits.java` | `ulimit -t/-f`（macOS 跳过 `-v` 并显式报告跳过项） |
 | mos4j-sandbox | `sandbox/{ProcessGroupKiller,DescendantsKiller}.java` | 进程组击杀接口 + 降级实现（尽力而为、非原子） |
-| mos4j-sandbox | `sandbox/{PathScope,PathScopes,SeatbeltScope}.java` | 路径强制：只收窄不放开；macOS Seatbelt 后端；不支持平台明确报错（**J8 扩为三平台：+ `LandlockScope`/`LandlockLauncher` + `PathScopes.derive` + SDK 缺省装配**，见 [`J8-STATUS.md`](J8-STATUS.md)） |
+| mos4j-sandbox | `sandbox/{PathScope,PathScopes,SeatbeltScope}.java` | 路径强制：只收窄不放开；macOS Seatbelt 后端；不支持平台明确报错（**J8 补齐：Seatbelt 与 Go 逐条对齐 + `PathScopes.derive`/`status` + SDK 缺省装配（当前只有 macOS 生效）；Linux Landlock 代码在位但未验证 → 默认不装配；Windows 未做**，见 [`J8-STATUS.md`](J8-STATUS.md)） |
 | mos4j-sandbox | `sandbox/SandboxBoundary.java` | 沙箱边界快照（`Describe` 的事实来源） |
 | mos4j-tool | `tool/builtin/{ReadFileTool,WriteFileTool,EditFileTool}.java` | 文件工具：观察门接线、原子写、唯一命中编辑 |
 | mos4j-tool | `tool/builtin/{TextContent,FileOps,BuiltinArgs}.java` | 文本归一 / BOM 保留 / 二进制拒绝；拒绝文案拼装；参数容错 |

@@ -20,37 +20,44 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
 
+      # 默认 reactor = 六个 SDK 模块（core / model / runtime / tool / session / agent）。
+      # MCP 接入已经并入 mos4j-tool，不再是独立模块，默认流水线就覆盖它。
       - name: Build + test (C1)
         run: ./mvnw -B verify
 
       # C2a 依赖纪律门禁（禁 Spring / Guava / ORM / Lombok / SLF4J 进 SDK 运行时）
       # 父 POM 的 maven-enforcer-plugin 在 verify 里已经执行；这里只标出它在流水线中的位置。
       # 验收：故意加一个违规依赖 → 本步与 verify 同时变红。
+      # 例外：mos4j-tool 因为要用官方 MCP SDK（它硬依赖 slf4j-api），用窄 enforcer 只放行 org.slf4j*。
 
-      # C3 模块边界检查：能力层不得 import 驱动层/装配层；日志与协议必须共用同一批值类型。
-      # 该门在 mos4j-sdk 的 BoundaryRulesTest 里（verify 已含）；这里显式单跑一次，便于定位。
-      - name: Module boundary check (C3)
+      # C3 包边界检查：能力层的包不得 import 智能体层（agent/driver/sdk/cli）；
+      # 日志与协议必须共用同一批值类型；默认 reactor 恰为六个 SDK 模块。
+      # 该门在 mos4j-agent 的 BoundaryRulesTest 里（verify 已含）；这里显式单跑一次，便于定位。
+      - name: Package boundary check (C3)
         run: >
-          ./mvnw -B -pl mos4j-sdk -am test
+          ./mvnw -B -pl mos4j-agent -am test
           -Dtest=BoundaryRulesTest -Dsurefire.failIfNoSpecifiedTests=false
 
       # C6 源码扫描：SDK 模块不得 import Spring；正则一律 RE2J
-      # 显式列出 12 个 SDK 模块——不能用 mos4j-*/src/main 通配：
+      # 显式列出 6 个 SDK 模块——不能用 mos4j-*/src/main 通配：
       # 按需模块 mos4j-spring-boot-starter 允许出现 Spring（那是它存在的意义）。
+      # 扫描范围含 src/test（测试里也不许用 java.util.regex）。
       - name: Source discipline scan (C6)
         run: |
-          SDK_MODULES="mos4j-core mos4j-llm mos4j-fs mos4j-sandbox mos4j-tool mos4j-session mos4j-hook mos4j-execpath mos4j-context mos4j-driver mos4j-policy mos4j-sdk"
+          SDK_MODULES="mos4j-core mos4j-model mos4j-runtime mos4j-tool mos4j-session mos4j-agent"
           PATHS=""
-          for m in $SDK_MODULES; do PATHS="$PATHS $m/src/main"; done
+          for m in $SDK_MODULES; do PATHS="$PATHS $m/src/main $m/src/test"; done
           ! grep -rn "import org.springframework" --include="*.java" $PATHS
           ! grep -rn "import java.util.regex" --include="*.java" $PATHS
 
       # C2b 依赖声明与使用一致（只用直接依赖，不靠传递依赖）
-      # 12 个模块全部扫（含 sdk：门面与 CLI 已有实现）
+      # 6 个 SDK 模块全部扫（agent 是门面与 CLI 的所在）。
+      # 注意：模块列表必须写在一行——YAML 折叠标量会把换行变成空格，
+      # 列表中间断行会让 "-pl a, b" 这种参数带上空格（Maven 会把 " b" 当模块名）。
       - name: Dependency hygiene (C2b)
         run: >
           ./mvnw -B -am
-          -pl mos4j-core,mos4j-llm,mos4j-fs,mos4j-sandbox,mos4j-tool,mos4j-session,mos4j-hook,mos4j-execpath,mos4j-context,mos4j-driver,mos4j-policy,mos4j-sdk
+          -pl mos4j-core,mos4j-model,mos4j-runtime,mos4j-tool,mos4j-session,mos4j-agent
           dependency:analyze -Dmdep.analyze.failOnWarning=true
 
       # C4 字段名守护 + C5 语料完整性已含在 verify 的测试里（FieldNameContractTest / L1CorpusIntegrityTest）
@@ -71,3 +78,33 @@ jobs:
       # 按需模块：Spring Boot starter（默认 reactor 不含它，用 -Pstarter 带上）
       - name: Build + test (starter)
         run: ./mvnw -B -Pstarter verify
+
+  # 示例集（examples）：独立 job——默认 reactor 不含它，用 -Pexamples 带上。
+  # 示例是「给人读的装配说明书」，用例用脚本化模型替身（examples/testkit），不碰网络。
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Build + test (examples)
+        run: ./mvnw -B -Pexamples verify
+
+      # MCP 示例（自带 stdio 回声服务器）需要官方 MCP SDK：再叠 examples 侧的局部 mcp profile。
+      # 注意：这里不再是根工程的 -Pmcp（根 profile 已取消）——MCP 接入已进默认 mos4j-tool，
+      # examples 侧的 mcp profile 只负责把 MCP 示例模块加进示例 reactor。
+      - name: Build + test (examples + mcp)
+        run: ./mvnw -B -Pexamples,mcp verify
+
+      # 示例的依赖纪律：每个示例只声明自己真的 import 到的模块，testkit 仅 test scope。
+      # 注意：模块列表必须写在一行（YAML 折叠标量会把换行变成空格）。
+      - name: Dependency hygiene (examples)
+        run: >
+          ./mvnw -B -Pexamples,mcp
+          -pl examples/testkit,examples/minimal,examples/chat,examples/agents,examples/skills,examples/subagent,examples/recovery,examples/mcp
+          -am dependency:analyze -Dmdep.analyze.failOnWarning=true

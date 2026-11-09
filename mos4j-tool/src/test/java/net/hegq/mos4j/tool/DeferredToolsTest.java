@@ -65,7 +65,7 @@ class DeferredToolsTest {
 
         // 登记后：清单里没有 hidden_tool，但有自动注册的 tool_search / activate
         List<String> visible = registry.list().stream()
-                .map(net.hegq.mos4j.llm.model.Tool::name).toList();
+                .map(net.hegq.mos4j.model.Tool::name).toList();
         assertFalse(visible.contains("hidden_tool"), "未激活的 deferred 工具不进清单");
         assertTrue(visible.contains("tool_search"), "deferred 非空时自动注册 tool_search");
         assertTrue(visible.contains("activate"), "deferred 非空时自动注册 activate");
@@ -78,7 +78,7 @@ class DeferredToolsTest {
         // 激活后：出现在清单（下一轮生效 = 下一次 list() 调用）
         registry.deferredCatalog().activate(List.of("hidden_tool"));
         List<String> after = registry.list().stream()
-                .map(net.hegq.mos4j.llm.model.Tool::name).toList();
+                .map(net.hegq.mos4j.model.Tool::name).toList();
         assertTrue(after.contains("hidden_tool"), "激活后进入清单");    }
 
     @Test
@@ -154,7 +154,7 @@ class DeferredToolsTest {
         registry.register(FunctionTool.of("plain", "普通工具", Map.class, a -> 1));
 
         List<String> names = registry.list().stream()
-                .map(net.hegq.mos4j.llm.model.Tool::name).toList();
+                .map(net.hegq.mos4j.model.Tool::name).toList();
         assertFalse(names.contains("tool_search"));
         assertFalse(names.contains("activate"));
     }

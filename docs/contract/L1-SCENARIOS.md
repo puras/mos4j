@@ -1,7 +1,7 @@
 # L1 协议场景清单（J0 · T0.5）
 
 > **口径**（整体方案 §0.0②）：SSE 报文**照抄 Go 测试字面量**（真实抓包非手造）；期望值由 Java 侧计算，不与 Go 基线机器对拍。
-> **落地形态**：每条场景 = `src/test/resources/llm/{protocol}/{case}.sse`（原始报文）+ Java 测试类断言四元组 `content / toolCalls / finishReason / usage`。
+> **落地形态**：每条场景 = `src/test/resources/model/{protocol}/{case}.sse`（原始报文）+ Java 测试类断言四元组 `content / toolCalls / finishReason / usage`。
 > 本清单是 T0.5 的验收范围：实现到 J1 时逐条点亮；清单本身 J0 冻结。
 > **点亮状态（J6 收口）**：Anthropic 10 条 → `L1AnthropicScenariosTest`（另加非流式 + 请求形状 2 条，共 12）；OpenAI 5 条 → `L1OpenAiScenariosTest`；Gemini 4 条 → `L1GeminiScenariosTest`（另加非流式 + 请求形状 2 条，共 6）。三协议全部点亮，`@Disabled` 归零。
 

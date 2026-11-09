@@ -1,5 +1,7 @@
 package net.hegq.mos4j.tool;
 
+import net.hegq.mos4j.core.ToolContext;
+
 import java.util.Map;
 
 /**
@@ -41,6 +43,25 @@ public interface Tool {
      * @throws Exception 工具自身失败（驱动层转成失败回执）
      */
     Object execute(String argsJson) throws Exception;
+
+    /**
+     * 带执行上下文的调用（默认走无上下文那条）。
+     *
+     * <p><b>为什么要这一条</b>：有些工具要知道「自己是在哪一轮、哪个会话里被调用的」——
+     * 子代理要派生子会话 id、要继承父轮次的取消。只给 {@code argsJson} 的工具
+     * 拿不到这些信息，于是只能猜（或者干脆不要）。
+     *
+     * <p><b>既有工具不受影响</b>：默认实现转给 {@link #execute(String)}，
+     * 不实现这一条的工具行为完全一样。
+     *
+     * @param argsJson 模型传来的参数（原始 JSON 文本）
+     * @param context  执行上下文（轮次 / 会话 id / 取消令牌）
+     * @return 结果（会被转成文本回填给模型）
+     * @throws Exception 工具自身失败（驱动层转成失败回执）
+     */
+    default Object execute(String argsJson, ToolContext context) throws Exception {
+        return execute(argsJson);
+    }
 
     /**
      * 本次调用是否可与同批其他调用并发（可选，默认<b>不可</b>）。

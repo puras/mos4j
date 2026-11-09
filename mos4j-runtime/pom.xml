@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-runtime</artifactId>
+  <name>MoS4J :: Runtime</name>
+  <description>执行边界底座：文件 jail（fs，Lexical+Realpath 双校验 M9 / 写前观察门 M7）与进程沙箱（sandbox，含 Seatbelt / Landlock / 路径强制）。只用 JDK，不依赖其他模块</description>
+</project>

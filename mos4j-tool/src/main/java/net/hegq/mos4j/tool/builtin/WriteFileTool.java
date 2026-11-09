@@ -98,7 +98,8 @@ public final class WriteFileTool implements Tool {
      */
     public boolean exists(String path) {
         try {
-            return Files.exists(fs.resolveExisting(path));
+            // 按写路径解析：只写根里的文件确实存在（读它被拒，但「存在」这个事实要知道）
+            return Files.exists(fs.resolveForWritePath(path));
         } catch (Exception e) {
             return false;
         }

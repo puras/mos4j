@@ -86,6 +86,40 @@ public class Mos4jProperties {
     /** 技能配置。 */
     private final Skills skills = new Skills();
 
+    /** 上下文文件配置（项目约定文件，如 AGENTS.md）。 */
+    private final ContextFiles contextFiles = new ContextFiles();
+
+    /**
+     * 路径强制模式。
+     *
+     * <p><b>为什么是显式开关而不是「自动降级」</b>：路径强制装不上时，
+     * 框架会 fail-closed（启动失败并说清两条出路）——「静默退化成没隔离的假装隔离」
+     * 是最坏的一种降级。确实没有沙箱可用的机器，宿主显式声明 {@code disabled}。
+     */
+    private PathScopeMode pathScope = PathScopeMode.AUTO;
+
+    /**
+     * Gemini 结束原因逃生阀（可空 = 缺省，即要求结束原因）。
+     *
+     * <p>只对 Gemini 生效；用在别的协议上会在启动时报错（不静默忽略）。
+     */
+    private Boolean requireFinish;
+
+    /** 输出的 token 上限（可空 = 用协议缺省）。 */
+    private Integer maxTokens;
+
+    /**
+     * 路径强制模式。
+     */
+    public enum PathScopeMode {
+
+        /** 缺省：探一次能不能真用起来；能用就装，不能用就启动失败并说清出路。 */
+        AUTO,
+
+        /** 显式不装（宿主知道这台机器没有沙箱可用；Describe 会如实声明）。 */
+        DISABLED
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -196,6 +230,34 @@ public class Mos4jProperties {
 
     public Skills getSkills() {
         return skills;
+    }
+
+    public ContextFiles getContextFiles() {
+        return contextFiles;
+    }
+
+    public PathScopeMode getPathScope() {
+        return pathScope;
+    }
+
+    public void setPathScope(PathScopeMode pathScope) {
+        this.pathScope = pathScope == null ? PathScopeMode.AUTO : pathScope;
+    }
+
+    public Boolean getRequireFinish() {
+        return requireFinish;
+    }
+
+    public void setRequireFinish(Boolean requireFinish) {
+        this.requireFinish = requireFinish;
+    }
+
+    public Integer getMaxTokens() {
+        return maxTokens;
+    }
+
+    public void setMaxTokens(Integer maxTokens) {
+        this.maxTokens = maxTokens;
     }
 
     /** 审批通道配置。 */
@@ -361,6 +423,82 @@ public class Mos4jProperties {
 
         public void setMaxCatalogBytes(int maxCatalogBytes) {
             this.maxCatalogBytes = maxCatalogBytes;
+        }
+    }
+
+    /**
+     * 上下文文件配置（项目约定文件，如 {@code AGENTS.md}）。
+     *
+     * <p><b>为什么不缺省自动扫工作区</b>：自动扫 = 每次启动都可能多出一段没人预期的系统提示词，
+     * 而且「扫到了什么」取决于宿主放了哪些文件。显式配目录 = 宿主知道自己在装什么。
+     */
+    public static class ContextFiles {
+
+        /**
+         * 上下文文件所在目录（可空 = 不装配）。
+         *
+         * <p>绝对路径直接用；相对路径按 {@code mos4j.workspace} 解析（不是进程 CWD）。
+         */
+        private String dir;
+
+        /**
+         * 候选文件名（缺省 = 框架缺省候选：{@code AGENTS.md} / {@code MOS.md} / {@code .mos/AGENTS.md}）。
+         *
+         * <p>同一目录下多个候选同时存在时，按本列表的顺序取第一个。
+         */
+        private List<String> candidates = new ArrayList<>();
+
+        /** 总字节预算（可空 = 框架缺省；超出部分被裁掉，裁掉事实进 Describe caveats）。 */
+        private Integer byteBudget;
+
+        /** 向上递归层数（可空 = 框架缺省 0 = 只看本目录；负数 = 不限）。 */
+        private Integer maxDepth;
+
+        /**
+         * 全局目录（用户级约定；可空 = 用框架缺省 {@code ~/.mos}）。
+         *
+         * <p>给空列表 = 不读全局目录（测试与「只要项目约定」的宿主用）。
+         */
+        private List<String> globalDirs;
+
+        public String getDir() {
+            return dir;
+        }
+
+        public void setDir(String dir) {
+            this.dir = dir;
+        }
+
+        public List<String> getCandidates() {
+            return candidates;
+        }
+
+        public void setCandidates(List<String> candidates) {
+            this.candidates = candidates == null ? new ArrayList<>() : candidates;
+        }
+
+        public Integer getByteBudget() {
+            return byteBudget;
+        }
+
+        public void setByteBudget(Integer byteBudget) {
+            this.byteBudget = byteBudget;
+        }
+
+        public Integer getMaxDepth() {
+            return maxDepth;
+        }
+
+        public void setMaxDepth(Integer maxDepth) {
+            this.maxDepth = maxDepth;
+        }
+
+        public List<String> getGlobalDirs() {
+            return globalDirs;
+        }
+
+        public void setGlobalDirs(List<String> globalDirs) {
+            this.globalDirs = globalDirs;
         }
     }
 }

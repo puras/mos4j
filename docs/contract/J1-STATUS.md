@@ -1,5 +1,7 @@
 # J1 推进状态（最小垂直切片）
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../../README.md) 与 [`docs/contract/API.md`](API.md)。
+
 > 更新：2026-11-05。J1 = 跑通一个「读文件 → 作答」的完整 turn + L1/L2 场景点亮（任务列表 §3）。
 > 配套：[任务列表](../mos4j-tasks.md)、[推进方案](../mos4j-execution.md)、[契约目录](.)。
 

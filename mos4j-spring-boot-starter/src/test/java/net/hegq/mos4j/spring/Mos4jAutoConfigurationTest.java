@@ -4,12 +4,13 @@ import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.core.ApprovalResult;
 import net.hegq.mos4j.core.CancellationToken;
 import net.hegq.mos4j.hook.ApprovalChannel;
-import net.hegq.mos4j.llm.Capability;
-import net.hegq.mos4j.llm.ChatModel;
-import net.hegq.mos4j.llm.Request;
-import net.hegq.mos4j.llm.Response;
-import net.hegq.mos4j.llm.StreamEmitter;
+import net.hegq.mos4j.model.Capability;
+import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.Request;
+import net.hegq.mos4j.model.Response;
+import net.hegq.mos4j.model.StreamEmitter;
 import net.hegq.mos4j.sdk.Mos4j;
+import net.hegq.mos4j.sandbox.PathScopeProbe;
 import net.hegq.mos4j.session.JsonlPersistence;
 import net.hegq.mos4j.tool.ToolRegistry;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,11 @@ class Mos4jAutoConfigurationTest {
 
     private ApplicationContextRunner runner() {
         return new ApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(Mos4jAutoConfiguration.class));
+                .withConfiguration(AutoConfigurations.of(Mos4jAutoConfiguration.class))
+                // 测试不真的跑沙箱：注入一个「可用」的探针。
+                // 探测本身（真跑一次 sandbox-exec）由 mos4j-runtime 的用例守。
+                .withBean(PathScopeProbe.class,
+                        () -> () -> PathScopeProbe.Result.available("测试注入"));
     }
 
     @Test
@@ -295,6 +300,37 @@ class Mos4jAutoConfigurationTest {
                     Exception error = assertThrows(Exception.class,
                             () -> tool.execute("{\"name\":\"deploy\"}"));
                     assertTrue(error.getMessage().contains("超预算"), error.getMessage());
+                });
+    }
+
+    @Test
+    void contextFilesDirIsWiredIntoTheSystemPrompt() throws Exception {
+        Path workspace = tempDir("context-files").toAbsolutePath();
+        Files.writeString(workspace.resolve("AGENTS.md"), "项目规矩：提交前必须跑测试\n");
+
+        runner()
+                .withPropertyValues(
+                        "mos4j.api-key=sk-test",
+                        "mos4j.workspace=" + workspace,
+                        "mos4j.context-files.dir=.",
+                        "mos4j.context-files.global-dirs=")
+                .run(context -> {
+                    assertNull(context.getStartupFailure(), String.valueOf(context.getStartupFailure()));
+                    String prompt = context.getBean(Mos4j.class).agent().runContext().systemPrompt();
+                    assertTrue(prompt.contains("提交前必须跑测试"), prompt);
+                    assertTrue(prompt.contains("<project_instructions"), prompt);
+                });
+    }
+
+    @Test
+    void contextFilesAreOptional() {
+        runner()
+                .withPropertyValues("mos4j.api-key=sk-test")
+                .run(context -> {
+                    assertNull(context.getStartupFailure(), String.valueOf(context.getStartupFailure()));
+                    String prompt = context.getBean(Mos4j.class).agent().runContext().systemPrompt();
+                    assertTrue(prompt == null || !prompt.contains("<project_instructions"),
+                            "没配目录就不装上下文文件: " + prompt);
                 });
     }
 

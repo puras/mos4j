@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j-examples</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-example-agents</artifactId>
+  <name>MoS4J :: Example :: agents</name>
+  <description>多智能体示例：拆解 → 执行 → 验收</description>
+  <dependencies>
+    <!-- 门面：缺省模型装配（默认模型走它） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-agent</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 多智能体编排直接用驱动层 API（每个角色一个 Agent） -->
+
+    <!-- 每个角色一个会话（会话 = 事件日志的投影） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-session</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- ChatModel -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-model</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 示例共用的测试替身（脚本化模型）：让用例不碰网络也能真跑一遍装配 -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-example-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

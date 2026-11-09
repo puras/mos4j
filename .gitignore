@@ -26,3 +26,12 @@ target/
 .gocache/
 .tmp/
 .mos-trunc/
+.mos-shell/
+
+# 本地临时目录：回归日志与一次性修补脚本（不属于交付物）
+.j7log/
+.j7log2/
+.j7log2-*.bak
+
+# 合并旧模块时的临时回收目录（不属于交付物）
+.trash/

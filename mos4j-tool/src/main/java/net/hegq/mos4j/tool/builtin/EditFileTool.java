@@ -121,6 +121,9 @@ public final class EditFileTool implements Tool {
         }
 
         Path target = fs.resolveExisting(path);
+        // 写入侧也要过一遍写权限：只读根里的文件能读不能改。
+        // （先解析读路径，再解析写路径：两者可能落在不同的根上。）
+        fs.resolveForWrite(path);
         ObserveGate.Verdict verdict = gate.verify(target);
         if (!verdict.allowed()) {
             throw new ToolException(FileOps.editDenial(path, verdict));

@@ -26,7 +26,7 @@
 
 ## 3. 交付形态
 
-- **SDK 是本体**（`mos4j-*` 12 个模块）；`mos4j-spring-boot-starter` 在按需清单（`docs/mos4j-tasks.md` §10），没有真实 Spring 宿主需求不动它。
+- **SDK 是本体**（`mos4j-*` 6 个模块）；`mos4j-spring-boot-starter` 在按需清单（`docs/mos4j-tasks.md` §10），没有真实 Spring 宿主需求不动它。
 - 修改事件字段 / 公共 API → **两人评审**（含维护者）+ 同步 `docs/contract/`。
 - 每个 PR 用 `.github/pull_request_template.md`，全不适用写 N/A，不留空。
 
@@ -44,7 +44,7 @@ MoS、PI/DSH 都没有等价物，而 Java 侧必须做的东西（例如 `Cance
 ## 5. 测试纪律
 
 - 每条不变式/机制有对应测试（映射表 `docs/contract/INVARIANT-TEST-MAP.md`，G2 门查空项）；
-- 场景测试的期望值写在 Java 测试里；L1 报文照抄 `src/test/resources/llm/`（改报文 = 改语料，须说明依据）；
+- 场景测试的期望值写在 Java 测试里；L1 报文照抄 `src/test/resources/model/`（改报文 = 改语料，须说明依据）；
 - 提交前 `mvn -q verify` 必须绿；守护测试红了先查是不是你改了契约，不是就修实现；
 - 评审表里引用的测试名必须是**真实存在的 `类.方法`**——写完自己核一遍（`grep -r "void <方法>("`），评审人不会替你追假名字。
 
@@ -52,4 +52,4 @@ MoS、PI/DSH 都没有等价物，而 Java 侧必须做的东西（例如 `Cance
 
 `<模块>: <做了什么>（触及 <不变式/机制编号>）`
 
-例：`mos4j-execpath: 载荷冻结检查（M1/I5）——钩子改写 args 即拒绝`
+例：`mos4j-agent: 载荷冻结检查（M1/I5）——钩子改写 args 即拒绝`

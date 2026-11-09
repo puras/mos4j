@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -15,11 +17,12 @@ import java.util.List;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * 字段名守护测试（防漂移体系防线 1 的 Java 端；J0 · T0.8）。
  *
- * <p><b>原理</b>：classpath 上的 {@code /llm/fieldnames.json} 是从 Go 参考仓库
+ * <p><b>原理</b>：classpath 上的 {@code /contract/fieldnames.json} 是从 Go 参考仓库
  * 一次性抽取的冻结清单（tools/fieldname-extract/extract.py）。本测试保证三件事：</p>
  * <ol>
  *   <li>清单文件在、可解析、自带的 sha256 摘要与内容一致——防止有人直接改清单
@@ -81,6 +84,67 @@ class FieldNameContractTest {
         JsonNode root = frozenList();
         assertEquals(root.get("_count").asInt(), root.get("fields").size(),
                 "清单 _count 与 fields 实际条数不符——清单被手改过");
+    }
+
+    /**
+     * 绝对基线：条目数 / 唯一名数 / 名字集合摘要。
+     *
+     * <p>上面的 {@link #frozenListIntegrity()} 只保证「清单自洽」——有人整份换掉、且把
+     * {@code _names_sha256} 一起改掉，测试仍然绿。这里把 **J7 批准后的绝对值**钉死：
+     * 字段名是冻结契约，改它必须先改本测试（也就是必须走 PR 评审）。
+     *
+     * <p>口径提醒：{@code _names_sha256} 是「<b>唯一名字集合</b>按字典序用 {@code \n} 拼接后的摘要」，
+     * <b>不是</b>清单文件的字节摘要——两个数都有人算过，写文档时要写清是哪一个。
+     */
+    @Test
+    void frozenListMatchesTheApprovedBaseline() {
+        JsonNode root = frozenList();
+        assertEquals(80, root.get("fields").size(),
+                "字段条目数变了（批准基线 80 条）——字段名冻结清单变更须走 PR 评审并同步 docs/contract");
+
+        TreeSet<String> names = new TreeSet<>();
+        root.get("fields").forEach(f -> names.add(f.get("name").asText()));
+        assertEquals(71, names.size(),
+                "唯一字段名数变了（批准基线 71 个）——字段名冻结清单变更须走 PR 评审并同步 docs/contract");
+
+        assertEquals("3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c",
+                sha256(String.join("\n", new ArrayList<>(names))),
+                "名字集合摘要变了（批准基线 3d35911d…）");
+    }
+
+    /**
+     * 文档副本与运行时基线必须逐字节一致。
+     *
+     * <p>两份文件分处 {@code docs/contract/} 与 {@code mos4j-core/src/main/resources/contract/}：
+     * 一份给人看、一份进 classpath。分叉了就等于「文档说的契约」与「机器守的契约」不是一回事。
+     */
+    @Test
+    void theDocumentCopyIsByteIdenticalToTheClasspathBaseline() {
+        byte[] baseline;
+        try (InputStream in = FieldNameContractTest.class.getResourceAsStream(FieldNames.FROZEN_LIST_RESOURCE)) {
+            assertNotNull(in, "冻结清单必须在 classpath: " + FieldNames.FROZEN_LIST_RESOURCE);
+            baseline = in.readAllBytes();
+        } catch (IOException e) {
+            throw new AssertionError("冻结清单读取失败", e);
+        }
+
+        Path document = null;
+        for (Path candidate : List.of(Path.of("..", "docs", "contract", "fieldnames.json"),
+                Path.of("docs", "contract", "fieldnames.json"))) {
+            if (Files.isRegularFile(candidate)) {
+                document = candidate;
+                break;
+            }
+        }
+        assumeTrue(document != null,
+                "仓库里找不到 docs/contract/fieldnames.json（运行目录既不是模块目录也不是仓库根）");
+
+        try {
+            assertArrayEquals(baseline, Files.readAllBytes(document),
+                    "docs/contract/fieldnames.json 与 classpath 基线不一致——两份副本必须逐字节一致");
+        } catch (IOException e) {
+            throw new AssertionError("文档副本读取失败", e);
+        }
     }
 
     private static String sha256(String s) {

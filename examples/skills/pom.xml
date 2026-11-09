@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j-examples</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-example-skills</artifactId>
+  <name>MoS4J :: Example :: skills</name>
+  <description>技能示例：技能目录 + 宿主手势</description>
+  <dependencies>
+    <!-- 门面：一次依赖拿到能跑的智能体 -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-agent</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- ChatModel -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-model</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 技能类型（Skill） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-tool</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 智能体类型（门面返回 Agent） -->
+
+    <!-- 示例共用的测试替身（脚本化模型）：让用例不碰网络也能真跑一遍装配 -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-example-testkit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

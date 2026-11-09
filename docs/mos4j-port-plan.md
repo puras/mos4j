@@ -1,5 +1,7 @@
 # MoS4J 整体方案（Java 移植）
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../README.md) 与 [`docs/contract/API.md`](contract/API.md)。
+
 > 输入：`/Users/puras/workspace/proj/hegq/mos`（Go 版 MoS，只读）、`docs/ARCHITECTURE.md`、`docs/PRD.md`、移植方案 `mos-default/docs/mos-java-port-plan.md`。
 > 性质：**照契约重写**，不是照代码翻译。每个机制必须能说清「为什么这样设计」「不这么做会出什么事」。
 > 命名已定（MoS4J / `net.hegq` / `mos4j-*` / `net.hegq.mos4j.*` / CLI `mos4j`），本文不再讨论。

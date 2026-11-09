@@ -119,9 +119,23 @@ class ToolContractTest {
     @Test
     @DisplayName("模型可见工具名清单冻结（14 个，skill 为条件注册）")
     void toolNamesAreFrozen() {
-        List<String> actual = registry.list().stream().map(net.hegq.mos4j.llm.model.Tool::name).toList();
+        List<String> actual = registry.list().stream().map(net.hegq.mos4j.model.Tool::name).toList();
 
         assertEquals(FROZEN_NAMES, actual);
+    }
+
+    @Test
+    @DisplayName("MCP 工具不进冻结清单（工具名是动态的，冻结了就不成立）")
+    void mcpToolsAreNotInTheFrozenList() {
+        assertTrue(FROZEN_NAMES.stream().noneMatch(name -> name.startsWith("mcp__")),
+                "MCP 工具名随服务器与上游工具变化，不能进冻结清单");
+    }
+
+    @Test
+    @DisplayName("MCP 资源工具不进冻结清单（按需模块的条件注册工具）")
+    void mcpResourceToolsAreNotInTheFrozenList() {
+        assertTrue(FROZEN_NAMES.stream().noneMatch(name -> name.startsWith("mcp_resource_")),
+                "MCP 资源工具由按需模块条件注册（有资源的服务器才装），不能进冻结清单");
     }
 
     @Test
@@ -143,7 +157,7 @@ class ToolContractTest {
         expected.put("web_fetch", List.of("url"));
         expected.put("skill", List.of("name"));
 
-        for (net.hegq.mos4j.llm.model.Tool tool : registry.list()) {
+        for (net.hegq.mos4j.model.Tool tool : registry.list()) {
             @SuppressWarnings("unchecked")
             Map<String, Object> properties = (Map<String, Object>) tool.parameters().get("properties");
             List<String> actual = new ArrayList<>(properties == null ? List.of() : properties.keySet());
@@ -170,7 +184,7 @@ class ToolContractTest {
         expected.put("web_fetch", List.of("url"));
         expected.put("skill", List.of("name"));
 
-        for (net.hegq.mos4j.llm.model.Tool tool : registry.list()) {
+        for (net.hegq.mos4j.model.Tool tool : registry.list()) {
             @SuppressWarnings("unchecked")
             List<String> required = (List<String>) tool.parameters().get("required");
             assertEquals(expected.get(tool.name()), required == null ? List.of() : required,
@@ -181,7 +195,7 @@ class ToolContractTest {
     @Test
     @DisplayName("schema 不含 title / $defs（部分服务端会拒）")
     void schemasHaveNoTitleOrDefs() {
-        for (net.hegq.mos4j.llm.model.Tool tool : registry.list()) {
+        for (net.hegq.mos4j.model.Tool tool : registry.list()) {
             assertTrue(!tool.parameters().containsKey("title"), tool.name() + " 的 schema 不该有 title");
             assertTrue(!tool.parameters().containsKey("$defs"), tool.name() + " 的 schema 不该有 $defs");
         }

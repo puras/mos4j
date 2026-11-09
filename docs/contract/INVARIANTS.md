@@ -40,7 +40,7 @@
 
 **违反后果**：钩子「好心」吞掉错误 → 模型以为操作成功 → 基于错误状态继续决策；事后审计看到的是被美化过的历史。
 
-**Java 落点**：`mos4j-execpath` finalize 阶段单向判定：`if (!outcome.isError && out.err != null) { content = err消息; isError = true; }`——只允许这个方向。
+**Java 落点**：`mos4j-agent` finalize 阶段单向判定：`if (!outcome.isError && out.err != null) { content = err消息; isError = true; }`——只允许这个方向。
 
 **验证**：J2 场景——post-execute 钩子返回成功内容但 err 非空 / 试图把 isError 改回 false → 断言回执 `isError=true`。
 
@@ -52,7 +52,7 @@
 
 **违反后果**：长会话把上下文撑爆 → 请求被服务商拒绝或费用失控；治理事件（审批问答等）混进投影挤占业务上下文。
 
-**Java 落点**：`mos4j-context` 的预算估算 + 压缩触发；`approval/*` 事件**不走预算制**（PRD 点名全量落日志，但投影不收）；压缩摘要以 `[历史摘要]` 前缀注入 user 角色，切割点永不落在 tool 结果上（见机制 M8 关联）。
+**Java 落点**：`mos4j-session` 的预算估算 + 压缩触发；`approval/*` 事件**不走预算制**（PRD 点名全量落日志，但投影不收）；压缩摘要以 `[历史摘要]` 前缀注入 user 角色，切割点永不落在 tool 结果上（见机制 M8 关联）。
 
 **验证**：J4 场景——构造超预算历史 → 断言压缩触发、切割点合法、`firstKeptSeq` 之后的连续性保持。
 
@@ -67,7 +67,7 @@
 
 **违反后果**：钩子能改载荷 → 守卫判定失效（见机制 M1）；钩子能绕守卫 → 「安全策略」沦为可协商的建议。
 
-**Java 落点**：`mos4j-hook` 的 `GuardBus` / `HookBus` 分型；`mos4j-execpath` 编排顺序：guard → hook（链）→ 冻结检查 → 执行 → post hook → finalize。
+**Java 落点**：`mos4j-tool` 的 `GuardBus` / `HookBus` 分型；`mos4j-agent` 编排顺序：guard → hook（链）→ 冻结检查 → 执行 → post hook → finalize。
 
 **验证**：J2 场景——钩子链中试图跳过守卫 / 改写载荷 → 均被拒；守卫对同一调用只触发一次（副作用计数测试）。
 
@@ -87,7 +87,7 @@
 
 ## I7 依赖纪律
 
-**陈述**：SDK 模块（`mos4j-core/llm/tool/session/driver/execpath/hook/policy/fs/sandbox/context/sdk`）的**运行时依赖只有 4 类：Jackson 家族（databind/core/annotations/dataformat-yaml）、RE2J、SnakeYAML 系（只经由 `jackson-dataformat-yaml` 传递引入，用于 YAML frontmatter 解析）、（JDK 自带）**。Spring / Guava / 数据库 / ORM / 日志门面不进 SDK；Spring 只允许出现在 `mos4j-spring-boot-starter`（按需，见任务列表 §10）。
+**陈述**：SDK 模块（`mos4j-core` / `mos4j-model` / `mos4j-runtime` / `mos4j-tool` / `mos4j-session` / `mos4j-agent`）的**运行时依赖只有 4 类：Jackson 家族（databind/core/annotations/dataformat-yaml）、RE2J、SnakeYAML 系（只经由 `jackson-dataformat-yaml` 传递引入，用于 YAML frontmatter 解析）、（JDK 自带）**。Spring / Guava / 数据库 / ORM / 日志门面不进 SDK；Spring 只允许出现在 `mos4j-spring-boot-starter`（按需，见任务列表 §10）。
 
 > **修订（J7 / B16）**：原条文写「只有 3 个：Jackson、RE2J、JDK」。J7 要解析技能 frontmatter（YAML），选了成熟 YAML 方案（Jackson 的 `jackson-dataformat-yaml`）而不是手写 YAML 子集——手写子集会变成第二套解析真相，且 YAML 的坑（布尔字面量、标签、锚点）远比 frontmatter 需要的子集多。因此运行时依赖面增加 SnakeYAML 系（`org.snakeyaml:snakeyaml-engine`，由 YAML 模块传递引入，不直接用其 API）。**机械门不动**：Enforcer 的 `bannedDependencies` 列表不变（SnakeYAML 本来就不在禁令里），C2b/C6 照旧。
 

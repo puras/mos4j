@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MoS4J 示例集：每个示例一个模块。
+
+  为什么要独立于 SDK 模块：
+    示例是**给人读的装配说明书**，不是交付本体。放进默认 reactor 会让
+    「一次依赖拿到能跑的智能体」这条承诺被示例代码稀释（示例会多引依赖、
+    多占构建时间）。
+
+  怎么构建：
+    ./mvnw -Pexamples verify          # 六个示例（不含 mcp）
+    ./mvnw -Pexamples,mcp verify      # 连 MCP 示例一起（MCP 示例要用官方 MCP SDK）
+
+  怎么跑：
+    mvn -pl examples/minimal -am exec:java ... （或直接 java -cp）
+    示例需要真的 API Key 与模型名，所以 CI 只编译与跑「不碰网络」的那部分用例。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-examples</artifactId>
+  <packaging>pom</packaging>
+  <name>MoS4J :: Examples</name>
+  <description>示例集：最小装配 / 多轮对话 / 多智能体 / 技能 / 子代理 / 恢复 / MCP</description>
+
+  <modules>
+    <module>testkit</module>
+    <module>minimal</module>
+    <module>chat</module>
+    <module>agents</module>
+    <module>skills</module>
+    <module>subagent</module>
+    <module>recovery</module>
+  </modules>
+
+  <profiles>
+    <!--
+      MCP 示例要用官方 MCP Java SDK（它自己显式声明）。
+      SDK 侧的 MCP 接入已经并入 mos4j-tool，默认就在 reactor 里——这里的 profile
+      只控制「要不要构建 MCP 这个示例模块」。
+      ./mvnw -Pexamples,mcp verify
+    -->
+    <profile>
+      <id>mcp</id>
+      <modules>
+        <module>mcp</module>
+      </modules>
+    </profile>
+  </profiles>
+
+  <!--
+    依赖**不放在聚合层**：每个示例只声明自己真的 import 到的模块
+    （dependency:analyze 的规矩：靠传递依赖“恰好能用”会让依赖关系失真）。
+    测试基座（junit-jupiter）由根 POM 的 <dependencies> 继承。
+  -->
+</project>

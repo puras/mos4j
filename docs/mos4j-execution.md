@@ -1,5 +1,7 @@
 # MoS4J 推进方案
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../README.md) 与 [`docs/contract/API.md`](contract/API.md)。
+
 > 配套：[整体方案 `mos4j-port-plan.md`](mos4j-port-plan.md)（为什么这么设计）、[任务列表 `mos4j-tasks.md`](mos4j-tasks.md)（做什么）。
 > 本文件回答：**怎么一步步推**——阶段顺序、每阶段的动作剧本、CI 门、检查点、评审规范、协作流程、停点汇报格式。
 > 路线：**A（全量 Java 移植）**；驱动力 = 团队技术栈；Go 仓库只读。
@@ -44,7 +46,7 @@
    └───────────────┘
         │
    ┌────┴────────────────┐
-   │ J8 三平台路径强制    │  （Seatbelt 对齐 + Linux Landlock；Windows 未做）
+   │ J8 三平台路径强制    │  （macOS 已收口；Linux/Windows 暂不验证）
    └─────────────────────┘
         │
    发布准备（后续立项：坐标/签名/Central/文档站）
@@ -220,17 +222,18 @@ SSRF 防线二/四（钉住 / 体积超时）为传输层实现，真机 rebindi
 **J7 的最大风险**：**造出第二套安全真相**（把 `allowed-tools` 做成真工具收窄）。对策：`allowed-tools` 只求交、只留痕；技能正文走专用工具而不是 `read`；审计落点不碰 `ExecPath.Security`。
 已收口证据见 [`contract/J7-STATUS.md`](contract/J7-STATUS.md)。
 
-### 3.9 J8 三平台路径强制（2026-11-07 已收口 macOS + Linux 代码面）
+### 3.9 J8 路径强制（2026-11-07 已收口 **macOS**，Linux/Windows 暂不验证）
 
 | 批次 | 动作 | 关键守则 |
 |---|---|---|
-| T8.1 | Seatbelt 与 Go 对齐 | `(literal "/dev/null")` 必须放行；写根要 `toRealPath`（软链根会拦自己的写）；执行器缺失在 `wrap` 阶段就报错 |
-| T8.2 | `PathScopes` 语义修正 | `supported()` = 「有可用后端」；`derive(workDir)` = Go 的 `deriveScope`；无后端平台报错而不是静默 |
-| T8.3 | Linux Landlock（FFM） | 零依赖零 JNI：`landlock_create_ruleset`/`add_rule`/`restrict_self` + `prctl`；ABI V1/V2/V3 分档；`restrict_self` 只对调用线程生效 → **必须重新执行自己** |
-| T8.4–T8.5 | fail-closed 管道 + SDK 缺省装配 | `wrap` 抛错 → `notStarted`（命令不跑）；SDK 写根 = 工作区（与 Go 缺省强制同口径） |
-| T8.6–T8.8 | 测试 + 真机验收 + Windows | 非 Linux 上 5 条 Landlock 用例是**跳过不是通过**；Windows 未做（需验证环境，8–12 人日） |
+| T8.1 | Seatbelt 与 Go 逐条对齐 | profile **同形态（一行）**：`deny file-write*` + `(literal "/dev/null")` + 每写根 `(subpath …)`；写根要 `toRealPath`（软链根会拦自己的写）；SBPL 转义；根要绝对路径（对齐 `validateScope`）；执行器缺失在 `wrap` 阶段就报错 |
+| T8.2 | `PathScopes` 语义修正 | `supported()` = 「**有已验证的后端**」（当前 = macOS Seatbelt）；`status()` 把平台状态写进 Describe caveat；`derive(workDir)` = Go 的 `deriveScope`；无后端平台报错而不是静默 |
+| T8.3 | fail-closed 管道 + SDK 缺省装配 | `wrap` 抛错 → `notStarted`（命令不跑）；SDK 写根 = 工作区（与 Go 缺省强制同口径） |
+| T8.4 | **profile 语法真机验证** | 正确 profile → exit 71（语法过了，apply 被拒）；写坏的 profile → exit 65 / `unbound variable`。**两条都固化成用例**（反例保证判据有效） |
+| T8.5–T8.8 | Linux Landlock（代码在位，**暂不验证 → 默认不装配**）+ Windows（未做）+ 真机验收 | 非 Linux 上 5 条 Landlock 用例是**跳过不是通过**；Windows 未做（需验证环境，8–12 人日） |
+| T8.10–T8.12 | **评审 Q1–Q8 的实施批次**（2026-11-07，Q1/Q2′/Q4/Q5 落地，Q3/Q8 维持） | T8.10 动态写根（`pathScopeSupplier` + `PathScopeFactory`，SDK 接 `RootSet` 的活根）；T8.11 显式出口 + 装配期探测（`pathScope` / `noPathScope` / `pathScopeProbe`，**探针可注入**）；T8.12 门面协议旋钮（`requireFinish` 只对 Gemini 生效、用错 **fail-fast**；`maxTokens` 走 `sdk → Config → ReActPlanner → Request`） |
 
-**J8 的最大风险**：把「后端已实现」当成「已验收」。对策：三平台能力矩阵写进 [`contract/J8-STATUS.md`](contract/J8-STATUS.md) §2，每条右列必须写实测状态；缺省装配会让「宿主不允许应用沙箱」的机器上 shell 命令直接失败——这是 fail-closed 的意图，但升级前必须知道。
+**J8 的最大风险**：把「后端已实现」当成「已验收」。对策：能力矩阵写进 [`contract/J8-STATUS.md`](contract/J8-STATUS.md) §2，每条右列必须写实测状态；**未验证的后端不默认装**（Linux）；缺省装配会让「宿主不允许应用沙箱」的机器上 shell 命令直接失败——这是 fail-closed 的意图，但升级前必须知道。
 已收口证据见 [`contract/J8-STATUS.md`](contract/J8-STATUS.md)。
 
 ---

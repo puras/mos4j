@@ -10,7 +10,7 @@ import java.io.UncheckedIOException;
 /**
  * 把审批事件写进会话日志（机制 M10：审批事件<b>全量落日志</b>，不走预算制）。
  *
- * <p><b>为什么单独一个类</b>：审批链在 {@code mos4j-hook}，日志在
+ * <p><b>为什么单独一个类</b>：审批链在 {@code net.hegq.mos4j.hook} 包，日志在
  * {@code mos4j-session}。审计接口放在 {@code mos4j-core}（共享词汇表），
  * 两边都只依赖 core，既不用让 session 反向依赖 hook，
  * 也不用让 hook 反向依赖 session。

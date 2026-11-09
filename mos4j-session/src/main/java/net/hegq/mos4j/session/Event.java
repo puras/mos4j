@@ -2,8 +2,8 @@ package net.hegq.mos4j.session;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.annotation.JsonSerialize;
-import net.hegq.mos4j.llm.model.ToolCall;
-import net.hegq.mos4j.llm.model.Usage;
+import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.Usage;
 
 import java.util.List;
 

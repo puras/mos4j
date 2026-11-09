@@ -1,8 +1,8 @@
 package net.hegq.mos4j.session;
 
-import net.hegq.mos4j.llm.model.Usage;
-import net.hegq.mos4j.llm.model.UsageDetails;
-import net.hegq.mos4j.llm.model.InputTokenDetails;
+import net.hegq.mos4j.model.Usage;
+import net.hegq.mos4j.model.UsageDetails;
+import net.hegq.mos4j.model.InputTokenDetails;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -121,12 +121,12 @@ class SessionTest {
                 .toolResult(new ToolResult("call_1", "结果", false))
                 .build());
 
-        List<net.hegq.mos4j.llm.model.Message> messages = session.messages();
+        List<net.hegq.mos4j.model.Message> messages = session.messages();
 
         assertEquals(3, messages.size());
-        assertEquals(net.hegq.mos4j.llm.model.Role.USER, messages.get(0).role());
-        assertEquals(net.hegq.mos4j.llm.model.Role.ASSISTANT, messages.get(1).role());
-        assertEquals(net.hegq.mos4j.llm.model.Role.TOOL, messages.get(2).role());
+        assertEquals(net.hegq.mos4j.model.Role.USER, messages.get(0).role());
+        assertEquals(net.hegq.mos4j.model.Role.ASSISTANT, messages.get(1).role());
+        assertEquals(net.hegq.mos4j.model.Role.TOOL, messages.get(2).role());
         assertEquals("call_1", messages.get(2).toolCallId());
         assertFalse(messages.get(2).toolCalls() != null && !messages.get(2).toolCalls().isEmpty());
     }

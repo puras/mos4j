@@ -1,6 +1,7 @@
 package net.hegq.mos4j.spring;
 
-import net.hegq.mos4j.spring.test.FakeLlmServer;
+import net.hegq.mos4j.sandbox.PathScopeProbe;
+import net.hegq.mos4j.spring.test.FakeModelServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,11 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class Mos4jStarterTurnTest {
 
-    private FakeLlmServer server;
+    private FakeModelServer server;
 
     @BeforeEach
     void setUp() throws IOException {
-        server = new FakeLlmServer();
+        server = new FakeModelServer();
     }
 
     @AfterEach
@@ -49,6 +50,9 @@ class Mos4jStarterTurnTest {
 
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(Mos4jAutoConfiguration.class))
+                // 测试不真的跑沙箱：注入一个「可用」的探针（探测本身由 sandbox 模块的用例守）
+                .withBean(PathScopeProbe.class,
+                        () -> () -> PathScopeProbe.Result.available("测试注入"))
                 .withPropertyValues(
                         "mos4j.api-key=sk-test",
                         "mos4j.model=gpt-test",

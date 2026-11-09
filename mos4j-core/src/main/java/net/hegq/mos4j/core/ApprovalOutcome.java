@@ -1,5 +1,7 @@
 package net.hegq.mos4j.core;
 
+import java.util.Optional;
+
 /**
  * 人工审批的四种结局（机制 M10 / 不变式 I1）。
  *
@@ -40,5 +42,37 @@ public enum ApprovalOutcome {
     /** 是否允许执行（只有「批准」允许）。 */
     public boolean permits() {
         return this == APPROVED;
+    }
+
+    /**
+     * 这个结局能不能被**复用**（先验复用：同一轮内不重复问人）。
+     *
+     * <p>只有「真决定」可以：批准与拒绝。撤回（{@link #CANCELLED}）与无人应答
+     * （{@link #UNAVAILABLE}）不是人的决定——复用它们等于把「没人答」当成「批过了」。
+     */
+    public boolean reusable() {
+        return this == APPROVED || this == REJECTED;
+    }
+
+    /**
+     * 解析日志里的结局名（{@code approved} / {@code rejected} / {@code cancelled} /
+     * {@code unavailable}）。
+     *
+     * <p>会话日志里存的是结局名（会话包不依赖审批包），读回来时用它兑成枚举；
+     * 认不出来的名字一律当作「没有决定」（不当成拒绝，也不当成批准）。
+     *
+     * @param value 日志里的结局名
+     * @return 解析结果；认不出来时为空
+     */
+    public static Optional<ApprovalOutcome> fromWire(String value) {
+        if (value == null || value.isEmpty()) {
+            return Optional.empty();
+        }
+        for (ApprovalOutcome outcome : values()) {
+            if (outcome.wire.equals(value)) {
+                return Optional.of(outcome);
+            }
+        }
+        return Optional.empty();
     }
 }

@@ -1,17 +1,22 @@
 package net.hegq.mos4j.session;
 
-import net.hegq.mos4j.llm.model.InputTokenDetails;
-import net.hegq.mos4j.llm.model.Message;
-import net.hegq.mos4j.llm.model.OutputTokenDetails;
-import net.hegq.mos4j.llm.model.ToolCall;
-import net.hegq.mos4j.llm.model.Usage;
-import net.hegq.mos4j.llm.model.UsageDetails;
+import net.hegq.mos4j.model.InputTokenDetails;
+import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.OutputTokenDetails;
+import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.Usage;
+import net.hegq.mos4j.model.UsageDetails;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * 一个会话：append-only 事件日志 + 投影。
@@ -31,6 +36,7 @@ public final class Session {
     private final String id;
     private final Persistence persist;
     private final List<Event> events = new ArrayList<>();
+    private final Set<String> claims = new LinkedHashSet<>();
     private final Object lock = new Object();
     private long seq;
     private boolean headerWritten;
@@ -47,6 +53,18 @@ public final class Session {
     /** 会话 id。 */
     public String id() {
         return id;
+    }
+
+    /**
+     * 持久化后端（可空 = 纯内存）。
+     *
+     * <p>给「派生会话」用：子代理要开独立子会话，用<b>同一个后端</b>开，
+     * 子会话日志与父会话日志落在同一处（宿主查得到子代理干了什么）。
+     *
+     * @return 持久化后端
+     */
+    public Persistence persistence() {
+        return persist;
     }
 
     /**
@@ -82,6 +100,202 @@ public final class Session {
     public List<Event> events() {
         synchronized (lock) {
             return new ArrayList<>(events);
+        }
+    }
+
+    /**
+     * 认领一个**会话级一次性标记**。
+     *
+     * <p>首次认领返回 {@code true}，之后一律返回 {@code false}。用来做「每会话只做一次」的事：
+     * 比如把 MCP 服务器的说明注入模型（注入一次就不再重复，避免刷屏）。
+     *
+     * <p><b>标记只在内存里</b>，不落盘：会话从日志恢复后标记会丢，
+     * 那类一次性注入会再发生一次。这是刻意选择——把标记写进日志就要新增事件类型，
+     * 而事件字段清单是冻结的；用「多注入一次」换「不动冻结清单」更划算。
+     *
+     * @param key 标记键（不能为空）
+     * @return true = 本次认领成功（此前未被认领）
+     */
+    public boolean claim(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("session: claim 的键不能为空");
+        }
+        synchronized (lock) {
+            return claims.add(key);
+        }
+    }
+
+    /** 已认领的标记（快照，宿主可查）。 */
+    public Set<String> claims() {
+        synchronized (lock) {
+            return new LinkedHashSet<>(claims);
+        }
+    }
+
+    /**
+     * 「问了但还没答」的审批请求（派生：{@code approval/asked} 有、{@code approval/decided} 无，按 id 配对）。
+     *
+     * <p>顺序按日志顺序（先问的在前）。已决的不在里面——「未决」= 宿主可能还得去问人的那批。
+     *
+     * <p><b>纯读</b>：不写日志、不改状态、不推进序号——派生视图随时可重算。
+     *
+     * @return 未决审批（快照）
+     */
+    public List<Approval> pendingApprovals() {
+        synchronized (lock) {
+            List<Approval> asked = new ArrayList<>();
+            Set<String> decided = new LinkedHashSet<>();
+            for (Event event : events) {
+                Approval approval = event.approval();
+                if (approval == null) {
+                    continue;
+                }
+                if (event.kind() == EventKind.APPROVAL_ASKED) {
+                    asked.add(approval);
+                } else if (event.kind() == EventKind.APPROVAL_DECIDED) {
+                    decided.add(approval.id());
+                }
+            }
+            List<Approval> pending = new ArrayList<>();
+            for (Approval approval : asked) {
+                if (!decided.contains(approval.id())) {
+                    pending.add(approval);
+                }
+            }
+            return pending;
+        }
+    }
+
+    /**
+     * 某次审批的结果（{@code approved} / {@code rejected} / {@code cancelled} / {@code unavailable}）。
+     *
+     * <p>按 <b>id</b> 查（不是按轮次）：id 是审批请求的身份（asked 与 decided 共用）。
+     *
+     * @param id 审批 id
+     * @return 结果；没有这次决定时为空
+     */
+    public Optional<String> approvalOutcome(String id) {
+        if (id == null || id.isEmpty()) {
+            return Optional.empty();
+        }
+        synchronized (lock) {
+            for (Event event : events) {
+                Approval approval = event.approval();
+                if (event.kind() == EventKind.APPROVAL_DECIDED
+                        && approval != null && id.equals(approval.id())) {
+                    return Optional.ofNullable(approval.outcome());
+                }
+            }
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 「同一轮、同一次调用」上已有的审批决定（先验复用用）。
+     *
+     * <p>匹配键是 {@code (turn, callId)}——<b>不是 id</b>：每次审批请求都会签发新 id，
+     * 拿 id 匹配等于永远匹配不上。同轮同调用上若有多次决定，取<b>最后一次</b>
+     * （最新的一次决定最贴近当下的意图）。
+     *
+     * @param turn   轮次号
+     * @param callId 调用 id
+     * @return 最后一次决定；没有时为空
+     */
+    public Optional<Approval> approvalDecision(int turn, String callId) {
+        if (callId == null || callId.isEmpty()) {
+            return Optional.empty();
+        }
+        synchronized (lock) {
+            Approval found = null;
+            for (Event event : events) {
+                Approval approval = event.approval();
+                if (event.kind() != EventKind.APPROVAL_DECIDED || approval == null) {
+                    continue;
+                }
+                if (event.turn() != turn || !callId.equals(approval.callId())) {
+                    continue;
+                }
+                found = approval;
+            }
+            return Optional.ofNullable(found);
+        }
+    }
+
+    /**
+     * 「被中断的那一轮」（有 {@code turn/start}、且没<b>正常</b>收尾的最后一轮）。
+     * 0 = 没有被中断的轮次。
+     *
+     * <p><b>中断 = 没结束 或 以 {@code interrupted} 收尾</b>：重开会话时恢复会给孤儿
+     * turn 合成一条 {@code turn/end{reason:"interrupted"}}（只补事件、不回写日志）——
+     * 那一轮<b>仍然是</b>被中断的（工具调用悬空），续跑要认它。
+     *
+     * <p>续跑要沿用<b>同一轮</b>的轮次号：审批决定的复用键是 {@code (turn, callId)}，
+     * 轮次号一变就匹配不上。
+     *
+     * @return 被中断的轮次号；没有时为 0
+     */
+    public int interruptedTurn() {
+        synchronized (lock) {
+            Map<Integer, Boolean> started = new LinkedHashMap<>();
+            Map<Integer, String> ended = new LinkedHashMap<>();
+            for (Event event : events) {
+                if (event.kind() == EventKind.TURN_START) {
+                    started.put(event.turn(), Boolean.TRUE);
+                } else if (event.kind() == EventKind.TURN_END) {
+                    ended.put(event.turn(), event.reason());
+                }
+            }
+            int best = 0;
+            for (Integer turn : started.keySet()) {
+                if (turn <= best) {
+                    continue;
+                }
+                String reason = ended.get(turn);
+                // 正常收尾（completed / error / terminated）的轮次不算被中断
+                if (reason != null && !"interrupted".equals(reason)) {
+                    continue;
+                }
+                best = turn;
+            }
+            return best;
+        }
+    }
+
+    /**
+     * 「声明了但没有结果」的调用（派生：{@code tool/call} 有、{@code tool/result} 无，按 CallID 配对）。
+     *
+     * <p>顺序按日志顺序（先声明的在前）。已回填的不在里面。
+     *
+     * <p><b>纯读</b>：不写日志、不改状态、不推进序号。
+     *
+     * @return 悬空调用（快照）
+     */
+    public List<HangingCall> hangingCalls() {
+        synchronized (lock) {
+            List<HangingCall> calls = new ArrayList<>();
+            Set<String> answered = new LinkedHashSet<>();
+            for (Event event : events) {
+                if (event.kind() == EventKind.TOOL_CALL) {
+                    net.hegq.mos4j.model.ToolCall call = event.toolCall();
+                    if (call == null || call.id() == null || call.id().isEmpty()) {
+                        continue;
+                    }
+                    calls.add(new HangingCall(event.turn(), call.id(), call.name(),
+                            call.args(), event.seq()));
+                } else if (event.kind() == EventKind.TOOL_RESULT) {
+                    ToolResult result = event.toolResult();
+                    if (result != null && result.callId() != null) {
+                        answered.add(result.callId());
+                    }
+                }
+            }
+            List<HangingCall> hanging = new ArrayList<>();
+            for (HangingCall call : calls) {
+                if (!answered.contains(call.callId())) {
+                    hanging.add(call);
+                }
+            }
+            return hanging;
         }
     }
 

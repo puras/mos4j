@@ -1,8 +1,8 @@
 package net.hegq.mos4j.session;
 
 import tools.jackson.databind.ObjectMapper;
-import net.hegq.mos4j.llm.model.Usage;
-import net.hegq.mos4j.llm.model.UsageDetails;
+import net.hegq.mos4j.model.Usage;
+import net.hegq.mos4j.model.UsageDetails;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;

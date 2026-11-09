@@ -1,5 +1,7 @@
 # MoS4J 任务列表
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../README.md) 与 [`docs/contract/API.md`](contract/API.md)。
+
 > 配套：[整体方案 `mos4j-port-plan.md`](mos4j-port-plan.md)（为什么这么设计）、[推进方案 `mos4j-execution.md`](mos4j-execution.md)（怎么推进）。
 > 本文件是**执行清单**：可勾选、每条有产出物与验收。
 > 路线已定：**A（全量 Java 移植）**，驱动力 = 团队技术栈（2026-11-03 拍板）。
@@ -117,11 +119,14 @@
   - 估算：1 人日 ｜ 依赖：T-INF.1
 
 **G0 验收清单**：
-- [x] `mvn -q verify` 在空实现下绿（当前基线 537 通过 / 6 跳过，13 个 reactor 项全 SUCCESS；含按需 starter 为 554/6、14 个 reactor 项）
+- [x] `mvn -q verify` 在空实现下绿（当前基线 **633 通过 / 7 跳过**，13 个 reactor 项全 SUCCESS；含按需 starter 为 **655/7**、含按需 MCP 为 **704/7**）
 - [x] L1 报文已抄入测试资源；L2/L3 场景骨架就绪（`L1-SCENARIOS.md` / `L2-SCENARIOS.md` / `L3-SCENARIOS.md`）
 - [x] 字段名守护测试能**发现**故意改错的字段名（`FieldNameContractTest` + `EventFieldNameGuardTest` 双层守护）
 - [ ] D1/D2/D6 三份文档定稿并评审通过（**人工评审未记录**，见 J6-STATUS §5.5 诚实边界）
-  - **评审辅助已备好**：`docs/contract/REVIEW-SHEET.md`——七条不变式 × 十机制 × 三协议口径 × 25 条自创机制 × 12 条诚实边界 × G1–G6 里程碑门，逐行含「契约句 / 违反后果 / Java 落点 / 守护测试 / 机械门 / 判定」与签署栏；表内引用的 `类.方法` 已逐条核实在仓库中真实存在。**填完表即可勾此项**（本项只差人填，不差产物）。
+  - **评审辅助已备好并已预填**（2026-11-07）：`docs/contract/REVIEW-SHEET.md`——七条不变式 × 十机制 × 三协议口径 × **自创机制（含 J8 后的 SI-32/SI-33）** × **诚实边界** × G1–G6 里程碑门，逐行含「契约句 / 违反后果 / Java 落点 / 守护测试 / 机械门 / 判定」与签署栏；表内引用的 `类.方法` 已逐条核实在仓库中真实存在。
+  - **争议点已拍板并实施**（2026-11-07，用户「全部接受建议」）：Q1–Q8 全部按建议落地（门面显式出口 / 装配期探测 / 动态写根 / `requireFinish` + `maxTokens`），Q3（Linux 默认不装配）与 Q8（`allowed-tools` 只诊断）维持现状并补文档；见 `docs/contract/REVIEW-QUESTIONS.md` 每条的「裁决与实施」栏。
+  - **预填 ≠ 评审通过**：每条判定栏的 `✅ 预填` 只是机器可核 + 实现复核后的**建议**，签字栏仍需人逐行确认。**本项只差人签字，不差产物**。
+  - **评审表已整理为最终可签版**（2026-11-07，按用户选择「自己逐行勾」）：表头加了「签字指引」（每节的勾选框含义、判「不通过」必须照抄契约句、预填 ≠ 签字）；§3 三协议口径加了稳定编号 **R1–R10**；§4 补齐了 **SI-32 / SI-33** 两条（此前只列到 SI-31，漏审）；§7 拆成 **§7.1 签字进度表**（83 条判定项 / 4 条已裁决 / 79 条待签）、**§7.2 签署栏**、**§7.3 未评审条目**（不勾的行必须列出来）。机器复核：表内 **34 条 `XxxTest.方法` 引用零缺失**、**17 条【代码】路径零缺失**。
 
 ---
 
@@ -376,7 +381,7 @@
   - 关键：**装配期渲染一次**（保 prompt cache）；连续两轮 system 段逐字节一致
   - 估算：1.5 人日 ｜ 依赖：无
   - 落点：`PromptSection` / `PromptSections`；守护 `PromptSectionsTest`（9 条）
-- [x] **T4.8** 上下文文件（候选名优先级 + 向上递归 + 同目录 override + 真实路径去重 + 字节预算裁剪 + 降级写进 warnings）
+- [x] **T4.8** 上下文文件（候选名优先级 + **全局目录 → 由外向内 → 工作目录**的扫描顺序 + 同目录 override + 真实路径去重 + 字节预算裁剪 + 降级写进 warnings）——**2026-11-07 与 Go 逐条对齐**（发现规则与缺省值都改成 Go 同口径，详见 **T14.8**）
   - 关键：**框架不碰文件系统**（I/O 以 Reader 接口注入）
   - 终检：路径拼接也由 Reader 注入（`ContextFileReader.join`），虚拟文件系统宿主可覆写分隔符
   - 估算：1.5 人日 ｜ 依赖：T4.7
@@ -506,7 +511,24 @@
 |---|---|---|---|
 | ~~**Spring Boot starter**（自动装配：`ChatModel` / `Registry` / `Persistence` / 审批通道；配置属性化；条件装配；无自动装配时**不静默降级**；starter 能自动装配跑通一个 turn）~~ | 首个真实 Spring 宿主需求出现 | ~1.5 人日 | ✅ **已交付（2026-11-06）**——见下方 T-SB.1…T-SB.6 |
 | 与 Go 版的跨语言对拍（导出器 + 三层 golden） | 需要与 Go 版互操作（消费 Go 版会话日志 / 跨语言验收） | ~4 人日 + 长期维护 | 未做 |
-| M3+ 功能（多智能体 / MCP / Skills / 插件化） | 单独立项 | — | 未做 |
+| M3+ 功能（多智能体 / **MCP** / ~~Skills~~ / 插件化） | 单独立项 | — | **Skills ✅ 已交付（J7）**；**MCP ✅ 已交付 M0–M3**（见下方 T-MCP.0…T-MCP.3）；多智能体 / 插件化未做 |
+
+### 10.2 MCP 接入任务分解（按需模块 `mos4j-mcp`，`-Pmcp` 构建）
+
+> **2026-11-08 现状**：本节已**全部交付**，且 MCP 已从 `mos4j-mcp` **并入 `mos4j-tool`**（进默认 reactor，官方 SDK 为 optional 依赖，根 `-Pmcp` profile 取消）。本节保留当时的分解与交付记录。
+
+> 口径与进度见 [`docs/contract/MCP-STATUS.md`](contract/MCP-STATUS.md)。
+
+- [x] **T-MCP.0 立项 + 底座**（2026-11-07）：新增第 13 个模块 `mos4j-mcp`（**不进默认 reactor**，父 POM 的 `mcp` profile，`./mvnw -Pmcp verify`）；官方 MCP Java SDK **2.1.0**（**不手写 JSON-RPC**：2026-07-28 规范废弃了 initialize/roots/sampling）；契约层（`McpTransport` / `McpExposure` / `McpServerConfig` / `McpToolInfo` / `McpContent` / `McpCallResult` / `McpError` / `McpClient`）+ 命名（`mcp__<server>__<tool>`，超 64 字节截断 + SHA-256 后缀）+ 适配（schema 原样透传、上游 `isError` → 工具失败）+ **真 stdio 子进程 E2E**（`SdkMcpClientE2ETest` 4 条）。**依赖纪律破例**：slf4j-api / reactor-core / json-schema-validator 只进本模块（enforcer 用 `combine.self="override"` 改窄禁令，其余照旧）。**23 条测试全绿**；13 模块依赖审计全绿。
+- [x] **T-MCP.1 多服务器管理器**：并发连接（虚拟线程）、**两阶段换代**（先并发取全量，再整体写进注册表；任一环节失败不写半套）、失败隔离（一台连不上不影响其他）、**scope 隔离**（`mcp:<server>`）、快照诊断（`McpSnapshot`：每台状态 + 各档工具数 + 失败原因）、单台重连（`reload`）、失败保留上一代。**前置已补**：`ToolRegistry.replace(scope, tools, deferred)`（先校验整批再落盘）。
+- [x] **T-MCP.2 曝光三档落注册表 + instructions 注入**：`direct` 直接进清单；`deferred` 进目录（搜到后激活）；`hidden` 进注册表但被可见性层挡住——模型看不见、也搜不到，宿主仍可程序化调用（**前置已补**：`ToolRegistry.setVisibilitySlot` 具名可见性槽，同名整层替换、多槽 AND 叠加）。instructions **每会话注入一次**（`Session.claim`）、按 32KB 预算**整段省略**、走 user 侧（写一条 user 事件，不进静态系统提示词，保 prompt cache）。**门面**：`McpKit.attach(registry, configs)` 一把接上（刻意不放进 SDK 门面：否则官方 SDK 的传递依赖会进十二模块基线）。
+- [x] **T-MCP.3 认证 + 资源工具 + policy 联动 + 门面装配**（2026-11-07 落地）：
+  - **认证**：`McpTokenProvider`（每次请求取一次、**不缓存**；空串不注入；抛错归认证类）+ `McpError.Kind.AUTH`（401/403 独立分类）。守护：`McpAuthTest`（5 条，JDK `HttpServer` 真发 HTTP）。
+  - **资源工具三个**：`mcp_resource_list` / `mcp_resource_templates` / `mcp_resource_read`（工具面恒为 3；显式 `server` 参数路由；任一可见服务器有资源才注册；hidden 服务器的资源不可达；二进制只给长度与类型）。守护：`McpResourceToolsTest`（8 条）。
+  - **policy / guard 联动**：被拒的 MCP 工具不进模型清单、点名调用被守卫拦下（可见性槽与运行时守卫读同一份名单）。守护：`McpPolicyIntegrationTest`（3 条）。
+  - **门面装配**：`PromptSections` 新增 `mcp_servers` 分节（中心顺序：技能清单 → MCP 服务器摘要 → 工具指引）；`DescribeContributor` 让按需模块往默认模块的槽写装配事实（`McpKit.describeContributor()`）；`Config.closer(...)` + `Agent.close()`（幂等、逐个关、关不掉不拖垮其余）。守护：`PromptSectionsTest`、`McpKitWiringTest`（4 条）、`AgentCloseTest`（4 条）。
+  - **Starter 接入有意不做**：Starter 引官方 SDK = 把 SLF4J / Reactor / json-schema-validator 带进 Starter 基线；MCP 仍是按需模块，宿主自己在 Starter 之外接。
+  - **冻结清单口径**：MCP 工具与 MCP 资源工具都**不进**内置 14 工具清单，由 `mcpToolsAreNotInTheFrozenList` / `mcpResourceToolsAreNotInTheFrozenList` 两条守护测试守住。
 
 ### 10.1 Spring Boot starter 任务分解（全部已交付）
 
@@ -591,18 +613,115 @@
 
 ---
 
-## 13. J8 三平台路径强制（Go `sandbox/` 的 Linux/Windows 后端对齐）
+## 13. J8 路径强制（Go `sandbox/` 的 Linux/Windows 后端对齐）—— 口径：**先过 Mac 的**
 
-- 口径：用户裁决 **「与 MoS」** —— 缺省装配 + fail-closed（不是宿主 opt-in）
-- [x] **T8.1 Seatbelt 对齐**：profile 补 `(literal "/dev/null")`；写根 `toRealPath` 规范化（软链根不再拦自己的写）；SBPL 转义；`sandbox-exec` 缺失在 `wrap` 阶段就报错
-- [x] **T8.2 `PathScopes` 语义修正**：`supported()` = 「后端可用」而非「是不是 macOS」；新增 `derive(workDir)`（对齐 Go `deriveScope`）；无后端平台抛 `UnsupportedOperationException` 并点明缺什么
-- [x] **T8.3 Linux Landlock 后端**：`LandlockScope`（JDK 25 FFM 直调 4 支 syscall/libc，ABI V1/V2/V3 分档，`PR_SET_NO_NEW_PRIVS` 前置）+ `LandlockLauncher`（重新执行自己的 java 启动器：先套约束再起命令，失败 `exit 125`）
-- [x] **T8.4 fail-closed 管道**：`LocalRunner` 把 `wrap` 抛错转成 `RunResult.notStarted("路径强制不可用: …")`——命令一个字节都不跑
-- [x] **T8.5 SDK 缺省装配**：`Mos4j.fileTools()` 在 `PathScopes.supported()` 为真时 `pathScope(PathScopes.derive(anchor))`（写根 = 工作区）
-- [x] **T8.6 测试**：`SandboxBoundaryTest` 14 → 21（`/dev/null`、软链规范化、wrap 失败即 fail-closed、`derive` 写根口径、**Landlock wrap 形状与写根往返（不碰 native，任何平台可验）**、`/` 逃生门、收窄不能放开）；新增 `LandlockScopeTest` 5 条（`@EnabledOnOs(OS.LINUX)`，非 Linux 上**跳过而非通过**）
-- [ ] **T8.7 Windows 后端**：未开工（机制不同：低完整性 token + Low 标签/写 ACE + Job Object；且 `LocalRunner.SHELL="/bin/sh"`、`ResourceLimits.shellSnippet()` 的 `ulimit` 前缀都是 Unix 假设 → Windows 上 shell 工具当前根本跑不起来）。**需要先有 Windows 验证环境**，8–12 人日量级
-- [ ] **T8.8 真机验收**：macOS 强制效果（需允许 `sandbox-exec` 的主机）、Linux 强制效果（需 Linux ≥ 5.13；建议加 `runner.os == 'Linux'` 的 CI job）
-- **落地**：2026-11-07 全量验证 —— 默认 reactor **537 通过 / 0 失败 / 6 跳过**（12 个测模块）；`-Pstarter` **554 / 0 / 6**；12 模块依赖审计 `BUILD SUCCESS`（FFM 是 JDK 自带，**零新增依赖**）；C6 扫描均 0；真实行为探针见 `docs/contract/J8-STATUS.md` §5。**测试自身抓到两个真 bug**：packed 结构体用 `withByteAlignment(1)` 会在类初始化时抛异常；libc 绑定写在类静态初始化里会在 macOS 上直接炸（`prctl` 不存在）→ 改为嵌套懒加载 holder
+- 口径：用户先裁决 **「与 MoS」**（缺省装配 + fail-closed），后收窄为 **「先过 Mac 的，Linux 和 Windows 暂时不验证」**
+  → macOS = 唯一**已验证 + 缺省装配**的平台；Linux = 代码在位但**默认不装配**；Windows = 未实现
+- [x] **T8.1 Seatbelt 对齐**：profile 与 Go 的 `seatbeltProfile` **逐条对齐且同形态（一行）**：`deny file-write*` + `(literal "/dev/null")` + 每写根 `(subpath …)`；写根 `toRealPath` 规范化（软链根不再拦自己的写）；SBPL 转义；`narrowTo` 补绝对路径校验（对齐 `validateScope`）；`sandbox-exec` 缺失在 `wrap` 阶段就报错
+- [x] **T8.2 `PathScopes` 语义修正**：`supported()` = 「**有已验证的后端**」（当前 = macOS Seatbelt）；新增 `status()`（平台后端状态，进 Describe caveat）；新增 `derive(workDir)`（对齐 Go `deriveScope`）；无后端平台抛 `UnsupportedOperationException` 并点明缺什么
+- [x] **T8.3 fail-closed 管道**：`LocalRunner` 把 `wrap` 抛错转成 `RunResult.notStarted("路径强制不可用: …")`——命令一个字节都不跑
+- [x] **T8.4 SDK 缺省装配**：`Mos4j.fileTools()` 在 `PathScopes.supported()` 为真时 `pathScope(PathScopes.derive(anchor))`（写根 = 工作区）
+- [x] **T8.5 macOS profile 语法真机验证**：`sandbox-exec -p '<profile>' /usr/bin/true` —— 正确 profile **exit 71**（语法过了，apply 被宿主拒）+ 故意写坏 **exit 65 / `unbound variable`**；两条都固化成自动化用例（判据有效性由反例用例保证）
+- [x] **T8.6 测试**：`SandboxBoundaryTest` 14 → 27（`/dev/null`、软链规范化、wrap 失败即 fail-closed、`derive` 写根口径、profile 形态与规则顺序、SBPL 转义、多写根、**profile 被内核解析器接受（macOS 真机）**、语法错可检出（反例）、绝对路径校验、`/` 逃生门、收窄不能放开、Landlock wrap 形状与写根往返）；新增 `LandlockScopeTest` 5 条（`@EnabledOnOs(OS.LINUX)`，非 Linux 上**跳过而非通过**）
+- [x] **T8.7 Linux Landlock 后端（代码在位，暂不验证 → 默认不装配）**：`LandlockScope`（JDK 25 FFM 直调 4 支 syscall/libc，ABI V1/V2/V3 分档，`PR_SET_NO_NEW_PRIVS` 前置）+ `LandlockLauncher`（重新执行自己的 java 启动器：先套约束再起命令，失败 `exit 125`）；**未在 Linux 上验证 → `supported()` 不认它 → SDK 不缺省装配**
+- [ ] **T8.8 Windows 后端**：未开工（机制不同：低完整性 token + Low 标签/写 ACE + Job Object；且 `LocalRunner.SHELL="/bin/sh"`、`ResourceLimits.shellSnippet()` 的 `ulimit` 前缀都是 Unix 假设 → Windows 上 shell 工具当前根本跑不起来）。**需要先有 Windows 验证环境**，8–12 人日量级
+- [ ] **T8.9 真机验收**：macOS **强制效果**（需允许 `sandbox-exec` 的主机；profile 语法层已在本机验证）—— **Linux/Windows 按口径暂缓**
+- [x] **T8.10 Go 的动态 Scope 已对位（Q2′）**（2026-11-07 读 Go 源码后细化、2026-11-07 实施）：Go 的 `Local.Scope`（函数，每次调用现取）在 Java 侧缺失 → 会话里 `grant_access` 新授权的目录 **shell 仍写不了**（Go 用 `ScopeFunc` 让文件 jail 与 shell 沙箱共用同一份根集合，正是为了避免这个错位）。补法：`LocalRunner` 加 `pathScopeSupplier`（每次调用现取）+ `PathScopeFactory`（按平台现造 scope）；数据源现成（`RootSet` 已是活根集合）。**Go 的请求期 `Request.PathScope` 不补**（Go 自己的 shell 工具也不传它，不是真缺口）→ 登记为有意差异（D-J8-7）
+- [x] **T8.11 Q1/Q5：显式出口 + 装配期探测**（2026-11-07 实施）：门面 `pathScope(PathScope)` / `noPathScope()` / `pathScopeProbe(PathScopeProbe)`；探测不通 → **装配期报错**并给两条出路（换机器 / 显式关闭）；探针可注入（SDK + Starter 的 `PathScopeProbe` Bean）；Starter 属性 `mos4j.path-scope=auto|disabled`；CLI 开关 `--no-path-scope`
+- [x] **T8.12 Q4：门面协议旋钮**（2026-11-07 实施）：`requireFinish(Boolean)`（只对 Gemini 生效，其他协议/宿主自带模型 **fail-fast**）+ `maxTokens(Integer)`（模型级缺省，走 `sdk → Config → ReActPlanner → Request`）；Starter 属性 `mos4j.require-finish` / `mos4j.max-tokens`
+- **落地**：2026-11-07 全量验证 —— 默认 reactor **543 通过 / 0 失败 / 6 跳过**（12 个测模块）；`-Pstarter` **560 / 0 / 6**；12 模块依赖审计 `BUILD SUCCESS`（FFM 是 JDK 自带，**零新增依赖**）；C6 扫描均 0；**macOS profile 语法真机验证 exit 71 / 反例 exit 65**；真实行为探针见 `docs/contract/J8-STATUS.md` §5。**测试自身抓到两个真 bug**：packed 结构体用 `withByteAlignment(1)` 会在类初始化时抛异常；libc 绑定写在类静态初始化里会在 macOS 上直接炸（`prctl` 不存在）→ 改为嵌套懒加载 holder
+- **Q1–Q8 实施后的复验（2026-11-07）**：默认 reactor **567 通过 / 0 失败 / 7 跳过**（12 个测模块）；`-Pstarter` **589 / 0 / 7**（13 个测模块）；12 模块依赖审计全 `No dependency problems found`；C6（`src/main` + `src/test`）spring=0 / regex=0；裸 NUL=0。日志：`.j7log2/final2-default.log`、`.j7log2/final2-starter.log`、`.j7log2/final-dep-audit.log`（**这是 Q1–Q8 批次的当时基线；最新基线见 §14：默认 633 / starter 655 / MCP 704**）
 
-**明确不做**（本轮）：Windows 后端；沙箱内的读限制（只收窄写）；`grant_access` 与路径强制的联动（与 Go 一致，两者各管一摊）。
+**明确不做**（本轮）：Windows 后端；Linux 缺省装配（未验证）；沙箱内的读限制（只收窄写）；**Go 请求期 `Request.PathScope`**（Go 自己的 shell 工具也不传它 → 登记为有意差异 D-J8-7，不是缺口）。
 
+---
+
+## 14. 与 Go 的能力缺口收口批次（2026-11-07）
+
+> 起因：一次逐项对位审计（不靠记忆，靠读 Go 源码 + 读 Java 实现）列出与参考版的主要缺口；
+> 用户拍板「全来」。本节只记代码与测试，**发布收口（Version API、签名、Central）另立**。
+
+- [x] **T14.1 policy 可见性接线**：`PolicySlot`（`AtomicReference<ToolNamePolicy>` **单一状态源**）同时服务**模型可见性**与**运行时守卫**——两份名单各写一遍就会出现「模型看得见却调不动」或「看不见却能调」。`Agent.setPolicy(...)` 热替换只换 policy 层，**不覆盖 MCP hidden 槽**（槽是 AND 叠加、具名独立）。守护：`PolicyVisibilityTest`（7 条）
+- [x] **T14.2 ChatModel 装饰器**：`ChatModelDecorator`（统一接口）+ `LoggingChatModel` / `TimeoutChatModel` / `FallbackChatModel`；**显式嵌套**，不引入隐式全局中间件链（顺序由调用方决定）。Timeout = 协作式取消（外部取消优先于超时）；Fallback = 只在主模型**运行时失败**时降级（`CancellationException` 不降级）；能力取并集。**Cache 按用户口径后置**。守护：`ChatModelDecoratorsTest`（11 条）
+- [x] **T14.3 运行期模型目录**：`ModelOption`（ID / 标签 / 模型）+ `SwitchableChatModel`（`AtomicReference`）+ `ModelCatalog`（保序、重复 ID 与未知 ID **fail-closed**）；切换**下一轮生效**；**凭据只留在模型对象里**，不进快照与公开描述。守护：`ModelCatalogTest`（9 条）
+- [x] **T14.4 Describe 快照 + `Agent.close()` + `mcp_servers` 分节**：`DescribeContributor`（按需模块 → 默认模块的**槽**，方向不能反）+ `Config.closer(...)` + `Agent implements AutoCloseable`（幂等、逐个关、关不掉不拖垮其余）；`PromptSections` 中心顺序加入 `mcp_servers`（技能清单 → MCP 服务器摘要 → 工具指引）。守护：`AgentCloseTest`（4 条）、`McpKitWiringTest`（4 条）、`PromptSectionsTest`（17 条）
+- [x] **T14.5 发布收口（Version API + 发布清单 + 发布说明草稿）**（2026-11-07）：
+  - **对外 Version API**：`net.hegq.mos4j.core.Version`（`VERSION` 常量 + `version()`）+ `Mos4j.version()` + CLI `--version`；**版本号真源 = 父 POM 的 `<version>`**，`VersionTest` 机械对齐（漏改 → 变红）；不含构建时间戳（可复现构建）。守护：`VersionTest`（3 条）、`MainTest.versionExitsZeroAndPrintsTheVersion`
+  - **发布清单**：`docs/release.md`（发布物、版本策略、发布前机械门、**还缺什么**、发布步骤）——如实登记缺什么
+  - **发布配置（已推进）**：父 POM 新增 `release` profile（`maven-source-plugin` 3.3.1 + `maven-javadoc-plugin` 3.6.3 + `maven-gpg-plugin` 3.2.4，**默认不激活** → 默认构建零影响）+ `<scm>` 元数据；**许可证 MIT**（2026-11-07 用户拍板）→ 仓库根 `LICENSE` + POM `<licenses>`。**发布目标已裁决**（2026-11-07 用户：先发**内部私服**，Maven Central 暂缓）→ 父 POM 新增 `internal-publish` profile（`distributionManagement`，**地址与仓库 id 由 `-D` 注入、不写死**；未注入即 fail-closed）。**仍缺且刻意不写**：私服地址与账号、GPG 密钥（均属环境，不入库）
+  - **发布说明草稿**：`CHANGELOG.md`（0.1.0 未发布，按批次写好 + 已知边界）
+  - **冻结清单口径钉死**：`FieldNameContractTest` 新增 2 条（**绝对基线**：80 条 / 71 名 / 名字集合摘要 `3d35911d…`；文档副本与 classpath 基线**逐字节一致**）。**口径澄清**：文档里的 `3d35911d…` 是「<b>唯一名字集合</b>按字典序用 `\n` 拼接后的摘要」，**不是清单文件的字节摘要**（后者是 `aeb48e08…`）——两者都有人算过，现在写清了
+- **落地**：2026-11-07 全量验证 —— 默认 reactor **633 通过 / 0 失败 / 7 跳过**（12 个测模块）；`-Pstarter` **655 / 0 / 7**（13 个测模块）；`-Pmcp` **704 / 0 / 7**（13 个测模块）；13 模块依赖审计全 `No dependency problems found`；C6（spring / regex）均 0；裸 NUL 字节 0。日志：`.j7log2/rel4-default.log`、`.j7log2/rel4-starter.log`、`.j7log2/rel5-mcp.log`
+
+**明确不做**（本轮）：装饰器 `Cache`；Windows 后端；Starter 接 MCP；模型目录的凭据持久化（凭据只在模型对象里）。
+
+### 14.6 能力缺口收尾批次（2026-11-07）
+
+- [x] **T14.6.1 Go 原测试名补抄**：`docs/contract/INVARIANT-TESTS.md` 新增 §3.7，把本批新增机制（policy 可见性 / 模型目录 / 装饰器 / deferred 同轮可见 / MCP×policy / skill）的 **Go 原测试名逐字**列出并对位 Java 用例
+- [x] **T14.6.2 deferred 工具同轮再声明**：核实 `ReActDriver` **每轮决策前重取工具清单**（与 Go 同口径）→ 行为本就成立，**补 MCP 层的证明**：`McpDeferredVisibilityTest`（2 条：DEFERRED 档可被 `tool_search` 搜到、激活后同一次 run 的下一次请求即声明、真能调上游）
+- [x] **T14.6.3 结果投影口径收紧**：占位诊断**按类型分开**（image / audio / resource / resource_link / 未知）；原始 JSON 上限 512 → **2048**（对齐 Go 的 `maxOpaqueJSON`）；新增 `McpCallResult.opaqueParts()` / `textContent()`；参数不是 JSON 对象、上游无结果 → **fail-closed**（协议层）。守护：`McpResultProjectionTest`（9 条）+ `McpToolAdapterTest` 口径更新
+- [x] **T14.6.4 streamable-http 真服务器 E2E**：官方 SDK 服务端只有 stdio 与 HttpServlet 两族 → 引入**测试作用域**的嵌入式 Jetty 12.0.36，用官方 SDK 的 servlet 传输起一台**真的** MCP 服务器，走完 initialize / 会话头 / tools/list / tools/call。守护：`McpHttpServerE2ETest`（3 条）。**踩坑**：Jetty 版本要整族一致（`jetty-ee10-servlet` 12.1.x 的传递依赖是 12.0.x 的 core，混用会 `NoSuchMethodError`）
+- [x] **T14.6.5 CLI `--skills DIR`**（可重复）：技能清单进系统提示词（会话日志不记 system prompt）。守护：`MainTest.skillsDir_isWiredIntoTheSession`（真 HTTP 回放，断言技能清单进了**模型请求体**）
+- [x] **T14.6.6 技能并发 reload 压测**：`SkillCatalogConcurrencyTest`（4 虚拟线程 × 10 轮并发 reload + 并发读，断言不出现重名 / 空快照 / 异常）——**自选加固**，不是 Go 对拍缺口（Go 侧 reload 用例都不是并发的）
+- **落地**：2026-11-07 全量验证 —— 默认 reactor **633 通过 / 0 失败 / 7 跳过**（12 个测模块）；`-Pstarter` **655 / 0 / 7**（13 个测模块）；`-Pmcp` **704 / 0 / 7**（13 个测模块）；13 模块依赖审计全 `No dependency problems found`；C6（spring / regex）均 0；裸 NUL 字节 0。日志：`.j7log2/rel4-default.log`、`.j7log2/rel4-starter.log`、`.j7log2/rel5-mcp.log`
+  - 上述基线**已包含**本批新增用例（MCP 14 条 = 2 + 9 + 3，SDK 1 条，tool 1 条）
+
+### 14.7 内部私服发布配置（2026-11-07）
+
+- [x] **T14.7.1 发布目标裁决**：用户拍板 **先发内部私服**，Maven Central **暂缓** → 不写 OSSRH / Central Portal 的插件与地址（两条通道的插件不同，没核实过的版本号只会让发布在最后一步失败）
+- [x] **T14.7.2 `internal-publish` profile**：父 POM 新增 `distributionManagement`（releases / snapshots 两个仓库）；**地址与仓库 id 由命令行 `-D` 注入**（`mos4j.distribution.releaseUrl` / `snapshotUrl` / `releaseRepoId` / `snapshotRepoId`），**仓库里不写死任何环境信息**；两个 URL 属性**故意无默认值** → 未注入即 **fail-closed**（deploy 带着未解析的属性名失败，不会默默发到某个默认地址）
+- [x] **T14.7.3 与 `release` profile 正交**：`-Prelease` 管源码 / javadoc 附件 + GPG 签名，`-Pinternal-publish` 管上传地址；两者一起用：`-Prelease,internal-publish deploy`；两个 profile **默认都不激活** → 默认构建零影响
+- [x] **T14.7.4 文档同步**：`docs/release.md`（状态、缺口表、发布步骤）、`REVIEW-SHEET.md` B18、`INVARIANT-TESTS.md` §4、`CHANGELOG.md`、README
+- **仍需人提供**：私服地址、账号（写 `~/.m2/settings.xml` 的 `<server>`，id 要与仓库 id 对上）、GPG 密钥（或决定 `-Dgpg.skip=true`）；**人工评审签字 95 条**与 **Seatbelt 真机验收**也仍待完成
+- **验证**：`help:effective-pom -Pinternal-publish`（未注入 → URL 保持未解析属性名）与注入后的地址替换，均实测通过
+
+---
+
+## T14.8 Go 差异补齐与逐行复核（2026-11-07）
+
+> 背景：第一轮源码级初查识别 10 处 Go↔Java 差异，用户选定**只补 #5 / #7 / #9**；本批补齐这三项，随后**逐行复核** Go 的 `agent/driver/driver.go`、`session/derive.go`、`session/state.go`、`llm/registry.go`、`llm/wrap.go`、`agent/prompt/prompt.go`、`mos.go`、`defaults.go`、`subagent.go` / `resume.go` / `prior.go`，新增 3 处差异登记。
+
+- [x] **T14.8.1 压缩三开关（#5）**：`CompactionFailurePolicy`（`FAIL_CLOSED` / `SKIP_AND_CONTINUE`）+ `CompactionService.DEFAULT_SUMMARY_TIMEOUT = 3 分钟`（`Duration.ZERO` = 不限、**负值拒绝**）+ `Mos4j.Builder.disableCompaction(boolean)`（与已装压缩器冲突 → **fail-fast**）；压缩失败**不写** `compaction` 事件（冻结清单无 `failed` 字段，半截事件会破坏投影），只经 `onCompactionFailure` 回调交给宿主；摘要超时经虚拟线程隔离。守护：`CompactionTimeoutTest`（4 条）、`ContextFlowTest`（8 条）、`Mos4jTest` 3 条
+- [x] **T14.8.2 上下文文件装配（#7）**：`ContextFiles` 改成 Go 同口径（候选名 `AGENTS.override.md` > `AGENTS.md` > `AGENTS.MD` > `CLAUDE.md` > `CLAUDE.MD`；扫描顺序 = 全局目录 `~/.mos` → 由外向内的祖先目录 → 工作目录；真实路径去重；去 BOM；缺目录 fail-closed；坏文件记 warning 并试下一个候选；预算 32KB、行边界裁剪、不切开 UTF-8）；缺省**不向上递归**（`maxDepth=0`）；SDK 门面六个方法 + Starter `mos4j.context-files.*`；内容进静态系统提示词，warnings 进 Describe caveats。守护：`ContextFilesTest`（16 条）、`Mos4jTest.contextFilesAreWiredIntoTheSystemPrompt`、starter 2 条
+- [x] **T14.8.3 运行期根目录管理（#9）**：`Agent.addRoot/addReadRoot/addWriteRoot/removeRoot/roots`；根区分 `readable` / `writable`（只读根不能写、只写根不能读）；`RootSet.remove` 拒绝移除锚点根与未知根；文件工具按操作类型解析（`resolveForRead` / `resolveForWritePath`）；**shell 写范围只取 `writable` 的根**（只读根不进写范围，对齐 Go 的 `RootsFor(OpWrite)`）。守护：`RootSetTest`（13 条）、`RootManagementTest`（3 条）、`Mos4jTest.rootsCanBeManagedAtRuntime`、`DynamicPathScopeTest.readOnlyRootsDoNotReachTheShellWriteScope`
+- [x] **T14.8.4 逐行复核与差异登记**：新增 `docs/contract/GO-DIFF.md`（读了什么 / 汇总 / 缺口明细 / 语义差异 / 维护规则）；未实现项由 7 项增至 **10 项**（新增 #11 取消原因、#12 运行期可调参数、#13 `llm.WithCache`）；评审表补 **B21 / B22 / B23**（共 99 条判定项，**95 条待签**）；有意差异登记为 **SI-39…SI-42**；文档同步 `API.md` §3.14、`SELF-INVENTED.md`、`INVARIANT-TESTS.md` §3.8、`CHANGELOG.md`、README
+- **本轮不实现**：#1 / #2 / #3 / #4 / #6 / #8 / #10 / #11 / #12 / #13（登记为 backlog；#1 子代理与 #2 续跑建议排在发布后第一梯队）→ **已被 T14.9 全部补齐（2026-11-08）**
+
+
+## T14.9 Go 差异 13 项全部补齐（2026-11-08）
+
+> 背景：T14.8 只补了 #5 / #7 / #9，其余 **10 项**登记为 backlog（#1 子代理、#2 续跑、#3 审批先验、#4 会话派生读、#6 协议注册表、#8 提示词构建器、#10 示例集、#11 取消原因、#12 运行期参数、#13 本地缓存）。本批把 **13 项全部补齐**（含 T14.8 的三项）。**口径不变**：语义重写，Go 原测试名逐字对位，事件字段名清单**不动**。
+> 文档落点：[`GO-DIFF.md`](contract/GO-DIFF.md)（汇总与逐条语义）、[`API.md`](contract/API.md) §3.15（公开 API）、[`SELF-INVENTED.md`](contract/SELF-INVENTED.md) SI-43…SI-51、[`INVARIANT-TESTS.md`](contract/INVARIANT-TESTS.md) §3.9（Go 原测试名对位）、[`INVARIANT-TEST-MAP.md`](contract/INVARIANT-TEST-MAP.md) F-14…F-23。
+
+- [x] **T14.9.1 子代理（#1）**：core 新增 `ToolContext`（轮次 / session id / 取消令牌；`Tool.execute(String, ToolContext)` 默认回退旧签名）；tool 新增 `tool/subagent` 全套（`SubAgentCatalog` / `SubAgentDefinition` / `SubAgentFrontmatter` / `SubAgentTool` / `SubAgentTools` / `SubAgentReceipt` / `SubAgentStatus` / `SubAgentReader`）；driver 新增 `SubAgentSessionFactory` + `DefaultSubAgentRunner`；SDK 门面六个方法（`subAgents` / `subAgentDirs` / `subAgentReader` / `subAgentMaxCatalogBytes` / `subAgentTimeout` / `subAgentRunner`）。口径：独立会话、工具面 = 声明白名单 ∩ 父可见集、恒定排除 `subagent__*` 与 `tool_search`、固定 JSON 回执、失败转普通工具结果、清单进静态系统提示词。守护：`SubAgentCatalogTest` 12 / `SubAgentToolsTest` 12 / `SubAgentToolTest` 11 / `SubAgentFlowTest` 7 / `Mos4jTest` 4
+- [x] **T14.9.2 续跑（#2）**：`ResumeOptions`（`latest` / `ofTurn` / `withCalls`）+ `NothingToResumeException`（checked）+ `LoopDriver.resume(...)` / `Agent.resume(...)` / `Mos4j.resume(sessionId, ...)`；沿用原轮次号、载荷原样重放、走普通 ExecPath 安全链、与普通轮共享同一个 ReAct 循环、无可续时保持挂起。守护：`ResumeTest` 9
+- [x] **T14.9.3 审批先验（#3）**：core 的 `ApprovalPrior` 只读 SPI + session 的 `SessionApprovalPrior` + `ApprovalOutcome.reusable()`；复用条件 = 同轮 + 同 call id + 同工具名 + 仍悬空；只有 `APPROVED` / `REJECTED` 可复用；复用时签发新审批 id、旧 id 写进 `approval/asked.reason`（**不新增 `reusedFrom` 字段**）；未装审批通道仍 fail-closed。守护：`SessionApprovalPriorTest` 9 / `ApprovalPriorTest` 6
+- [x] **T14.9.4 会话派生读（#4）**：`Session.pendingApprovals/approvalOutcome/approvalDecision/interruptedTurn/hangingCalls` + `HangingCall`；**纯读**（不写日志 / 不改状态 / 不推进序号 / 不新增事件类型）；审批按 id 配对、悬空按 call id 配对、空 call id 不算悬空。守护：`SessionDerivationTest` 8
+- [x] **T14.9.5 协议注册表（#6）**：`ModelRegistry`（`register` / `create` / `names` / `contains` / `size`），配置形状 `Map<String,String>`，只做「名字 → 工厂」映射并生产裸 `ChatModel`；同名覆盖、未知名字 fail-closed 并列已注册名。守护：`ModelRegistryTest` 8
+- [x] **T14.9.6 可注入提示词构建器（#8）**：`Config.prompt(...)` / `Mos4j.Builder.prompt(...)` 与整串 `systemPrompt(...)` **互斥**；框架在宿主 Builder 的**副本**上添加 `context` / `skills` / `subagents` 分节（宿主那份不动；同名段冲突明确报错）；中心顺序加 `subagents`。守护：`PromptBuilderTest` 6 / `PromptSectionsTest` 16
+- [x] **T14.9.7 取消原因（#11）**：`CancellationToken.cancel(Throwable)` / `cause()`；首次原因生效（先到先得）；未取消或无因 → `null`；原因进 `turn/end.error` 与 driver 异常；**不新增冻结事件字段**。守护：`CancellationTokenCauseTest` 8 / `RuntimeKnobsTest.cancellationReasonReachesTurnEndAndTheThrownError`
+- [x] **T14.9.8 运行期可调参数（#12）**：`RunContext` 的并发 / 轮数上限改为 `IntSupplier`（每轮现取）+ `Agent.setConcurrency/setMaxDecisionRounds` + 参数级 `ParamPolicySlot`（`Agent.setRules`）；参数级规则必须**装配期先装过** `ParamPolicy`，否则 fail-closed；名字级与参数级槽状态独立。守护：`RuntimeKnobsTest` 5
+- [x] **T14.9.9 本地缓存装饰器（#13）**：`CachingChatModel(ChatModel, Duration)`；只缓存非流式成功结果；`ttl<=0` 不过期；取消先于命中；失败 / 空响应不缓存；命中返回同一 `Response` 对象；缓存键覆盖完整请求上下文（schema 键递归排序后哈希）；**与服务端 prompt cache 不是一回事**。守护：`CachingChatModelTest` 10
+- [x] **T14.9.10 示例程序集（#10）**：`examples/` 下 7 个示例模块（`minimal` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`）+ 共享 `examples/testkit`（脚本化模型替身，仅 test scope）+ 每个目录一个 README；**独立 `examples` profile**（不进默认 reactor，MCP 示例再叠 `-Pmcp`）；依赖逐模块显式声明（不靠传递依赖「恰好能编译」）。守护：examples 28 条 + `StubModelTest` 5 条
+- [x] **T14.9.11 文档登记与评审表更新**：`GO-DIFF.md`（13 项全绿表 + 逐条落点 + 新的有意差异）、`API.md` §3.15（十张 API 表）、`SELF-INVENTED.md` SI-43…SI-51、`INVARIANT-TESTS.md` §3.9（Go 原测试名逐字对位）、`INVARIANT-TEST-MAP.md` F-14…F-23、`REVIEW-SHEET.md`（SI-43…SI-51、B19 改写、B21…B23 改写为「已补齐」、新增 B24 / B25；共 **110 条**判定项、**106 条待签**）、`CHANGELOG.md`、README
+- [x] **T14.9.12 全 profile 回归**：默认 **775 / 0 / 7**、`-Pstarter` **799 / 0 / 7**、`-Pmcp` **846 / 0 / 7**、`-Pexamples` **28 / 0 / 0**、`-Pmcp -Pexamples` **31 / 0 / 0**；13 模块 + examples 8 模块 `dependency:analyze` 无告警。日志：`.j7log2/rel9-*.log`
+- [x] **T14.9.13 CI 补位**：新增 `examples` job（`-Pexamples verify` + `-Pmcp -Pexamples verify` + examples 依赖审计）；C6 源码扫描范围从 `src/main` 扩到 **12 个 SDK 模块的 `src/main` + `src/test`**（实测仍为 0）
+- **本批不做**：跨语言**回放比对**（两边会话日志同输入对照）——机器只能证「同名测试存在」，证不了「断言等价」；登记为 B25（需人做）
+
+## T15 SDK 由十二模块合并为六模块（2026-11-08）
+
+> 动因：模块粒度过细（十二个），宿主引一次依赖要理解十二个坐标；按能力族收敛后交付面更清楚。
+> **决策口径**（用户 2026-11-08 确认）：`core` / `model` / `runtime` / `tool` / `session` / `agent` 六个；
+> `mos4j-llm` 改名 `mos4j-model`；MCP 并入 `mos4j-tool`（包路径保留 `net.hegq.mos4j.mcp`）；
+> 官方 MCP SDK 设为 **optional**；根 `-Pmcp` profile 取消；Starter 与 examples 保持独立按需。
+
+- [x] **T15.1 `mos4j-llm` → `mos4j-model`**：`git mv` + 包路径 `net.hegq.mos4j.llm.*` → `net.hegq.mos4j.model.*`；原 `llm.model` 子包上提（消除 `model.model`）；测试资源 `/llm/…` → `/model/…`；`FakeLlmServer` → `FakeModelServer`（文件同步改名）。守护：`L1CorpusIntegrityTest` / `ModelRegistryTest` / `UsageJsonTest`
+- [x] **T15.2 源文件归族**：`driver` / `execpath` / `agent` / `sdk` / `cli` → `mos4j-agent`；`context` → `mos4j-session`；`hook` / `policy` / `mcp` → `mos4j-tool`；`fs` / `sandbox` → `mos4j-runtime`；`core` / `model` 保持
+- [x] **T15.3 MCP ↔ Agent 环解**：`DescribeContributor` 从 `net.hegq.mos4j.agent` **下沉到 `net.hegq.mos4j.core`**（零依赖共享 SPI，只依赖 `java.util.List`）；3 个 MCP×Agent 集成测试移到 `mos4j-agent` 的 `net.hegq.mos4j.agent.mcp` 包
+- [x] **T15.4 六模块 POM**：依赖方向无环（`core` 无内部依赖；`model → core`；`runtime` 无内部依赖；`tool → core/model/runtime`；`session → core/model/runtime`；`agent → core/model/runtime/tool/session`）；官方 MCP SDK `optional`；`mos4j-tool` 窄 enforcer 覆盖（只放行 `org.slf4j*`，父 POM 禁列不动）
+- [x] **T15.5 边界门改写**：`BoundaryRulesTest` 从**模块级**改为**包前缀级**（能力层包不得 import `agent`/`driver`/`sdk`/`cli`），另加「默认 reactor 恰为六个模块」的门；**做了负向验证**（故意注入违规 import → 门变红并指出位置 → 撤回恢复）。守护：`BoundaryRulesTest` 7
+- [x] **T15.6 CI 补位**：C6 扫描范围改为 **6 个 SDK 模块的 `src/main` + `src/test`**；删除根 `-Pmcp` job；examples job 改为 `-Pexamples` + `-Pexamples,mcp`；依赖审计 `-pl` 列表改为六模块（单行）
+- [x] **T15.7 文档同步**：README / CHANGELOG / API / GO-DIFF / SELF-INVENTED（新增 **SI-52**：官方 MCP SDK 的 SLF4J 例外改挂 `mos4j-tool`）/ REVIEW-SHEET（新增 **B26**：模块合并后依赖方向由 Maven 图降为包前缀门；共 **112 条**判定项、**108 条待签**）/ INVARIANT-TESTS / INVARIANT-TEST-MAP / MCP-STATUS / release / starter 文档 / examples README；历史批次文档（J*–STATUS / tasks / plan / execution / questions）加「布局说明（2026-11-08）」横幅，**保留历史原文**
+- [x] **T15.8 全 profile 回归**（六模块合并后实跑）：默认 **846 / 0 / 0 / 7**、`-Pstarter` **870 / 0 / 0 / 7**、`-Pexamples` **871 / 0 / 0 / 7**、`-Pexamples,mcp` **874 / 0 / 0 / 7**（示例自身 25 / 28 条）；6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6 spring=0 / regex=0；裸 NUL=0。日志：`.j7log2/merge-*.log`
+- [x] **T15.9 用例不丢的核对**：逐测试类比对重构前后（`llm` → `model` 归一后），**用例数不一致 0 条**、无旧有新无的类；增量 = 71 条（正是原 `-Pmcp` 的 MCP 模块用例数），说明 MCP 进默认 reactor 而非丢测试
+- **本批不做**：跨语言**回放比对**（B25，需人做）；**Seatbelt 真机 apply 验收**（需换环境）；**内部私服 deploy**（需地址与凭证）

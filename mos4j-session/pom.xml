@@ -10,7 +10,7 @@
   </parent>
   <artifactId>mos4j-session</artifactId>
   <name>MoS4J :: Session</name>
-  <description>事件日志（append-only，I2）、投影自愈（M4）与用量折叠（M6）；日志与协议同形</description>
+  <description>会话与上下文工程：事件日志（append-only，I2）、投影自愈（M4）、用量折叠（M6）、压缩与截断、提示词分节、上下文文件发现。日志与协议同形</description>
   <dependencies>
     <dependency>
       <groupId>net.hegq</groupId>
@@ -19,7 +19,13 @@
     </dependency>
     <dependency>
       <groupId>net.hegq</groupId>
-      <artifactId>mos4j-llm</artifactId>
+      <artifactId>mos4j-model</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 上下文文件发现读文件系统（走 runtime 的边界底座） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-runtime</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

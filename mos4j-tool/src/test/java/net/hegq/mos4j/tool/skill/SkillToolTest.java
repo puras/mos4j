@@ -270,7 +270,7 @@ class SkillToolTest {
         SkillTool skillTool = new SkillTool(load(newRoot()));
         ToolRegistry registry = new ToolRegistry();
         registry.register(skillTool);
-        net.hegq.mos4j.llm.model.Tool declared = registry.list().get(0);
+        net.hegq.mos4j.model.Tool declared = registry.list().get(0);
 
         assertEquals("skill", declared.name());
         assertTrue(declared.description().contains(SkillCatalog.CATALOG_TAG), declared.description());

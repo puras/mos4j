@@ -2,11 +2,11 @@
 
 > **定位**：MoS4J 的 SDK 是本体；starter 只是把「装配」翻译成 Spring 的样子——
 > **不实现任何智能体语义**。语义（裁决顺序、载荷冻结、fail-closed、Describe 快照）全部还在
-> `mos4j-driver` / `mos4j-execpath` / `mos4j-hook` 里。starter 如果自己写一套执行语义，
+> `mos4j-agent` 里。starter 如果自己写一套执行语义，
 > 就出现了第二份真相——那比没有 starter 更危险。
 >
 > **不进默认 reactor**：SDK 优先。非 Spring 宿主不该被拖入 Spring；
-> 默认 `./mvnw verify` 只构建 12 个 SDK 模块，starter 用 `-Pstarter` 带上。
+> 默认 `./mvnw verify` 只构建 6 个 SDK 模块，starter 用 `-Pstarter` 带上。
 
 ---
 
@@ -97,9 +97,36 @@ public class ChatService {
 | `mos4j.skills.dirs` | 无 | 技能目录（多个逗号分隔；**相对路径按 `mos4j.workspace` 解析，不以进程 CWD 为锚**）；不配 = 不装技能（也不注册 `skill` 工具） |
 | `mos4j.skills.max-body-bytes` | `65536` | 单个技能正文上限（字节）；超预算 → **调用时报错**，不回半截正文 |
 | `mos4j.skills.max-catalog-bytes` | `8192` | 进系统提示词的技能清单字节预算；超预算多级降级（只列名 → 部分条目 + 省略数 → 最小提示 → 不注入） |
+| `mos4j.path-scope` | `auto` | 路径强制（shell 命令能写哪些目录）：`auto` = 装配期探一次，能用就装、**不能用就启动失败**；`disabled` = **显式不装**（Describe 会如实声明「shell 不受路径强制保护」） |
+| `mos4j.require-finish` | 无 | Gemini 结束原因逃生阀（`false` = 不要求 `finishReason`）。**只对 Gemini 生效**：用在其他协议、或宿主自带 `ChatModel` Bean 时 **启动失败**（不静默忽略） |
+| `mos4j.max-tokens` | 无 | 输出的 token 上限（模型级缺省，进每个请求）；不配 = 用协议自己的缺省 |
 
 配置元数据（IDE 提示）由 `spring-boot-configuration-processor` 生成，产物在
-`META-INF/spring-configuration-metadata.json`（**23 个属性**：J7 新增 `mos4j.skills.*` 三个）。
+`META-INF/spring-configuration-metadata.json`（**26 个属性**：J7 新增 `mos4j.skills.*` 三个，
+Q1/Q4 批次新增 `mos4j.path-scope` / `mos4j.require-finish` / `mos4j.max-tokens`）。
+
+### 3.0 受限 macOS 主机怎么办（路径强制）
+
+本机（受管理的 macOS）常常**有 `sandbox-exec` 但宿主不允许 apply**（`sandbox_apply: Operation not permitted`）。
+本项目的口径是 **fail-closed**：探测不通就在**启动时**报错，不退化成「没隔离的假装隔离」。
+错误信息里有两条出路：
+
+1. 换一台允许应用沙箱的 macOS（缺省路径）；
+2. **显式声明这台机器没有沙箱**：
+
+```yaml
+mos4j:
+  path-scope: disabled     # shell 命令可写 jail 之外的目录（Describe 会声明这件事）
+```
+
+宿主也可以提供一个 `PathScopeProbe` Bean 覆盖探测（例如「这台机器已知可用」）：
+
+```java
+@Bean
+PathScopeProbe pathScopeProbe() {
+    return () -> PathScopeProbe.Result.available("这台机器已验证可应用沙箱");
+}
+```
 
 ### 3.1 技能怎么用
 
@@ -141,6 +168,8 @@ allowed-tools: [shell] # 只诊不断（当前不生效），缺失时记 mismat
 | `mos4j.output.spill-dir` 越界（`../` 逃出 workspace）或目录不存在 | **启动失败** | 事实被写到 jail 外面 = 边界形同虚设；默默写到别处 = 配置在骗人 |
 | 配了 `spill-dir` 但没有可读回它的文件工具（宿主自带 `ToolRegistry` 或 `file-tools=false`） | **启动失败** | 模型读不到那个文件时，上下文里「完整内容在 X」是骗模型 |
 | 未配置 `context-window` | 不装压缩 | 窗口只有服务商知道，猜了就是用错误的事实做决定 |
+| 路径强制探测不通（受限 macOS 宿主） | **启动失败**，报错给两条出路（换机器 / `mos4j.path-scope=disabled`） | 静默降级成「没隔离的假装隔离」是最坏的一种降级；等到模型第 N 轮才发现太晚 |
+| `mos4j.require-finish` 用在非 Gemini，或宿主自带 `ChatModel` Bean | **启动失败** | 一个不生效的开关比没有开关更难查（宿主以为开了，实际请求里没这个参数） |
 
 **没做**（诚实边界）：多轮 REPL、tty 审批交互、流式打点——starter 只提供「跑一轮」的能力，
 交互形态由宿主自己搭（SDK 的 `Agent` 支持流式与取消）。
@@ -194,7 +223,7 @@ runner.run("s1", "长任务", token);   // 宿主可随时 token.cancel()
 
 ## 8. 与依赖纪律的关系（I7）
 
-- Spring **只**出现在这个模块；12 个 SDK 模块的运行时依赖仍然只有 Jackson 家族 / RE2J / SnakeYAML 系 / JDK。
+- Spring **只**出现在这个模块；6 个 SDK 模块的运行时依赖仍然只有 Jackson 家族 / RE2J / SnakeYAML 系 / JDK。
 - 父 POM 的 enforcer 门（禁 Spring / Guava / ORM / Lombok / SLF4J）对 SDK 生效；
   在 starter 里**不是整条关掉，而是改窄**：只放行 Spring，
   Guava / ORM / Lombok / SLF4J / Logback 照旧禁（starter 也没理由用它们）。

@@ -1,9 +1,9 @@
 package net.hegq.mos4j.session;
 
-import net.hegq.mos4j.llm.model.Message;
-import net.hegq.mos4j.llm.model.Role;
-import net.hegq.mos4j.llm.model.ToolCall;
-import net.hegq.mos4j.llm.model.Usage;
+import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.Role;
+import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.Usage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

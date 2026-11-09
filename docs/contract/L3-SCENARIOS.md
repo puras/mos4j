@@ -1,7 +1,7 @@
 # L3 决策场景清单（J0 · T0.7，Java 自建）
 
 > **口径**：场景对齐 MoS 踩坑记录，期望值 Java 自算；拒绝文案断言以 `API.md` §4 文案表为准。
-> **落点**：`mos4j-execpath` / `mos4j-hook` / `mos4j-policy` / `mos4j-fs` / `mos4j-sandbox` 测试；J2/J3 点亮，清单 J0 冻结。
+> **落点**：`mos4j-agent` / `mos4j-tool` / `mos4j-runtime` 测试；J2/J3 点亮，清单 J0 冻结。
 
 ## D1 编排决策（execpath，J2 点亮）
 

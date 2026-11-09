@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>net.hegq</groupId>
+    <artifactId>mos4j</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>mos4j-agent</artifactId>
+  <name>MoS4J :: Agent</name>
+  <description>智能体层：回合驱动（driver）、Agent/Config/Describe、工具执行链（execpath）、SDK 门面与 CLI（sdk/cli）。一次依赖拿到全部模块与缺省装配（交付本体；Spring starter 按需另行发布）</description>
+  <dependencies>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-model</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 运行期根目录、路径强制、沙箱都在 runtime -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-runtime</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 工具面（工具/技能/子代理/守卫/审批/策略/MCP 接入） -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-tool</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 会话日志与上下文工程 -->
+    <dependency>
+      <groupId>net.hegq</groupId>
+      <artifactId>mos4j-session</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- 摘要生成器用 Jackson 直接构造 JSON（不靠传递依赖） -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <!--
+      测试作用域：不声明官方 MCP Java SDK。
+      mos4j-tool 把它声明为 optional（不传递给下游宿主），本模块的三个「MCP × Agent」
+      集成测试（net.hegq.mos4j.agent.mcp 包）只用我们自己的 McpClientFactory 假实现，
+      不碰官方 SDK 的类型 → 测试期不需要它在 classpath 上。
+      真要连官方 SDK 的用例留在 mos4j-tool（McpHttpServerE2ETest / SdkMcpClientE2ETest）。
+    -->
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <configuration>
+          <ignoredUnusedDeclaredDependencies combine.children="append">
+            <!-- 本模块没有需要豁免的条目：门面要转暴露的模块（工具/会话/执行链/策略）
+                 现在都在本模块内，不再是「声明了却没用」的传递依赖；
+                 外部模块（core / model / runtime / tool / session）本模块都直接引用。 -->
+          </ignoredUnusedDeclaredDependencies>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

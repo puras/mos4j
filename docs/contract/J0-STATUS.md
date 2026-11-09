@@ -1,5 +1,7 @@
 # J0 推进状态
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../../README.md) 与 [`docs/contract/API.md`](API.md)。
+
 > 更新：2026-11-03（**J2 期间回头补注**：本文只记 J0 当时的快照；J1 / J2 的现状分别见 [`J1-STATUS.md`](J1-STATUS.md) / [`J2-STATUS.md`](J2-STATUS.md)）。
 > J0 = 契约冻结 + 自建语料（任务列表 §2；B1 已在上阶段完成——Go 源码精读已沉淀进三份方案文档）。
 

@@ -2,7 +2,7 @@
 <!--
   mos4j-spring-boot-starter —— Spring Boot 自动装配（按需模块）。
 
-  定位：Spring 只需要出现在这里（依赖纪律 I7：SDK 十二模块的运行时依赖只有 Jackson / RE2J / JDK）。
+  定位：Spring 只需要出现在这里（依赖纪律 I7：SDK 六模块的运行时依赖只有 Jackson / RE2J / JDK）。
   默认不进默认 reactor：用 ./mvnw -Pstarter verify 单独构建。
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -24,11 +24,11 @@
     <!-- SDK 门面：一次依赖拿到全部 SDK 模块（starter 只做装配，不重复实现语义） -->
     <dependency>
       <groupId>net.hegq</groupId>
-      <artifactId>mos4j-sdk</artifactId>
+      <artifactId>mos4j-agent</artifactId>
     </dependency>
     <!--
       下面这些是 starter 直接引用的模块：依赖纪律要求「用到的就直接声明」，
-      不靠 mos4j-sdk 传递过来（传递依赖当契约 = 宿主换依赖时静默断链）。
+      不靠 mos4j-agent 传递过来（传递依赖当契约 = 宿主换依赖时静默断链）。
       门面仍然给宿主「一次依赖拿到全部」——那是给使用者的承诺，不是本模块的省事做法。
     -->
     <dependency>
@@ -37,7 +37,7 @@
     </dependency>
     <dependency>
       <groupId>net.hegq</groupId>
-      <artifactId>mos4j-llm</artifactId>
+      <artifactId>mos4j-model</artifactId>
     </dependency>
     <dependency>
       <groupId>net.hegq</groupId>
@@ -47,22 +47,13 @@
       <groupId>net.hegq</groupId>
       <artifactId>mos4j-session</artifactId>
     </dependency>
+
     <dependency>
       <groupId>net.hegq</groupId>
-      <artifactId>mos4j-context</artifactId>
+      <artifactId>mos4j-runtime</artifactId>
     </dependency>
-    <dependency>
-      <groupId>net.hegq</groupId>
-      <artifactId>mos4j-fs</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>net.hegq</groupId>
-      <artifactId>mos4j-hook</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>net.hegq</groupId>
-      <artifactId>mos4j-driver</artifactId>
-    </dependency>
+
+
     <!-- @ConfigurationProperties / 基础容器类型 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -112,7 +103,7 @@
         <artifactId>maven-enforcer-plugin</artifactId>
         <executions>
           <!--
-            父 POM 的依赖纪律门（禁 Spring / Guava / ORM / Lombok / SLF4J）对 SDK 十二模块生效。
+            父 POM 的依赖纪律门（禁 Spring / Guava / ORM / Lombok / SLF4J）对 SDK 六模块生效。
             starter 是唯一允许出现 Spring 的地方——但这里**不是**把整条门关掉
             （那等于顺手放开了 Guava / ORM / Lombok / SLF4J），而是把门改窄：
             只放行 Spring，其余禁令照旧（starter 同样没有理由用它们）。

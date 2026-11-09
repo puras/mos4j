@@ -1,5 +1,7 @@
 # J4 推进状态（上下文工程）
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../../README.md) 与 [`docs/contract/API.md`](API.md)。
+
 > 更新：2026-11-05。J4 = 输出限流 + 截断落盘 + 上下文压缩 + 提示词分节 + 上下文文件 + 任务状态审计门（任务列表 §6）。
 > 配套：[任务列表](../mos4j-tasks.md)、[推进方案](../mos4j-execution.md)、[契约目录](.)、[J1 状态](J1-STATUS.md)、[J2 状态](J2-STATUS.md)、[J3 状态](J3-STATUS.md)。
 

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * deferred 工具目录（T5.7）：登记工具的「名字 + 说明」，完整定义先不进请求。
@@ -22,6 +23,52 @@ public final class DeferredToolCatalog {
     private final List<Entry> entries = new ArrayList<>();
     private final Set<String> active = new LinkedHashSet<>();
     private final Object lock = new Object();
+    private Predicate<String> visibility = name -> true;
+
+    /**
+     * 装可见性过滤：搜不到的工具不进检索结果。
+     *
+     * <p>与注册表的可见性口径**同一份判定**——注册表说模型看不见的东西，
+     * 搜出来也没用（模型搜到了却调不动，比搜不到更费劲）。
+     *
+     * @param visible 判定（可空 = 全部可见）
+     */
+    public void setVisibility(Predicate<String> visible) {
+        synchronized (lock) {
+            this.visibility = visible == null ? name -> true : visible;
+        }
+    }
+
+    /**
+     * 移除一条登记（幂等）。
+     *
+     * <p>换代时用：上一代登记的名字不在新名单里，就该从目录里消失——
+     * 留着的话模型会搜到一个已经不存在的工具。
+     *
+     * @param name 工具名
+     */
+    public void unregister(String name) {
+        if (name == null) {
+            return;
+        }
+        synchronized (lock) {
+            entries.removeIf(entry -> entry.name().equals(name));
+        }
+    }
+
+    /**
+     * 取消激活（换代时用：工具名消失后，激活态不能留着占检索结果的位）。
+     *
+     * @param name 工具名
+     */
+    public void deactivate(String name) {
+        if (name == null) {
+            return;
+        }
+        synchronized (lock) {
+            active.remove(name);
+        }
+    }
 
     /** 登记一个 deferred 工具（重名登记直接报错，fail-closed）。 */
     public void register(String name, String description) {
@@ -77,7 +124,7 @@ public final class DeferredToolCatalog {
                 if (visible.size() >= Math.max(topK, 1)) {
                     break;
                 }
-                if (!active.contains(hit.id())) {
+                if (!active.contains(hit.id()) && visibility.test(hit.id())) {
                     visible.add(hit);
                 }
             }

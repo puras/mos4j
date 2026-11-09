@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 取消令牌（Java 侧自创机制，见 {@code docs/contract/SELF-INVENTED.md} SI-1）。
@@ -27,6 +28,7 @@ public final class CancellationToken {
     private static final CancellationToken NONE = new CancellationToken();
 
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private final AtomicReference<Throwable> cause = new AtomicReference<>(null);
     private final List<Runnable> callbacks = new CopyOnWriteArrayList<>();
 
     private CancellationToken() {
@@ -53,7 +55,30 @@ public final class CancellationToken {
      * <p>回调在调用线程内同步执行——所以回调里不要做慢操作。</p>
      */
     public void cancel() {
+        cancelWith(null);
+    }
+
+    /**
+     * 请求取消，并带上<b>原因</b>（幂等）。
+     *
+     * <p>为什么要有原因：宿主取消的原因往往是要告诉用户和审计的
+     * （「用户点了停止」与「上游超时」对账与 UX 完全不同）。没有原因时，
+     * 日志里只剩一个笼统的「已取消」——事后分不清是主动中止还是被动失败。
+     *
+     * <p><b>先到先得</b>：第一次取消时带的原因生效，后续再取消不覆盖
+     * （已经报出去的原因不能被后来的调用改写）。
+     *
+     * @param reason 取消原因（可空 = 不带原因）
+     */
+    public void cancel(Throwable reason) {
+        cancelWith(reason);
+    }
+
+    private void cancelWith(Throwable reason) {
         if (cancelled.compareAndSet(false, true)) {
+            if (reason != null) {
+                cause.compareAndSet(null, reason);
+            }
             for (Runnable action : callbacks) {
                 action.run();
             }
@@ -61,11 +86,36 @@ public final class CancellationToken {
         }
     }
 
-    /** 若已取消则抛 {@link CancellationException}；否则正常返回。 */
+    /**
+     * 取消原因（未取消时返回 {@code null}——「没被取消」不是「被取消了但不知道原因」）。
+     *
+     * @return 取消原因；无原因时为 {@code null}
+     */
+    public Throwable cause() {
+        return cause.get();
+    }
+
+    /**
+     * 若已取消则抛 {@link CancellationException}；否则正常返回。
+     *
+     * <p>取消异常带上有原因时的原因（{@link #cause()}）——调用方只看到
+     * 「操作已取消」是没法分清「用户叫停」和「上游超时」的。
+     */
     public void throwIfCancelled() {
         if (cancelled.get()) {
-            throw new CancellationException("操作已取消");
+            Throwable reason = cause.get();
+            CancellationException error = new CancellationException(
+                    reason == null ? "操作已取消" : "操作已取消：" + describe(reason));
+            if (reason != null) {
+                error.initCause(reason);
+            }
+            throw error;
         }
+    }
+
+    private static String describe(Throwable reason) {
+        String message = reason.getMessage();
+        return message == null ? reason.toString() : message;
     }
 
     /**

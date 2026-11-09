@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * J0 守护测试骨架：验证字段名常量的**自身不变量**（不与序列化挂钩，序列化断言在
- * mos4j-llm/session 有了 DTO 后点亮）。
+ * mos4j-model / mos4j-session 有了 DTO 后点亮）。
  *
  * <p>这是防漂移体系的第一颗牙：任何人手改这里的常量，先红的不是消费端，是这排测试。</p>
  */

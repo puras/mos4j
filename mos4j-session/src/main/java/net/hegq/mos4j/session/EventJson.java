@@ -4,8 +4,8 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.SerializationContext;
 import tools.jackson.databind.ValueSerializer;
-import net.hegq.mos4j.llm.model.ToolCall;
-import net.hegq.mos4j.llm.model.Usage;
+import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.Usage;
 
 /**
  * 事件的<b>手写</b>序列化器（逐字照抄 Go 侧 {@code session.Event} 的 tag 规则）。

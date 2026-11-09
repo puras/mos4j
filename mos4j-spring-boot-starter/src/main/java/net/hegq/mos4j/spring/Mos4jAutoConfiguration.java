@@ -13,8 +13,9 @@ import net.hegq.mos4j.hook.ApprovalChannel;
 import net.hegq.mos4j.hook.GuardBus;
 import net.hegq.mos4j.hook.HookBus;
 import net.hegq.mos4j.hook.PostHook;
-import net.hegq.mos4j.llm.ChatModel;
+import net.hegq.mos4j.model.ChatModel;
 import net.hegq.mos4j.sdk.Mos4j;
+import net.hegq.mos4j.sandbox.PathScopeProbe;
 import net.hegq.mos4j.session.JsonlPersistence;
 import net.hegq.mos4j.tool.ToolRegistry;
 import org.springframework.beans.factory.ObjectProvider;
@@ -68,6 +69,7 @@ public class Mos4jAutoConfiguration {
      * @param guards 守卫总线（可空 = 未装配）
      * @param hooks 钩子总线（可空 = 未装配）
      * @param postHook 执行后复核钩子（可空 = 未装配）
+     * @param pathScopeProbe 路径强制可用性探针（可空 = 真探一次）
      * @param environment Spring 环境（读密钥/模型名等环境变量口径；测试可注入）
      */
     @Bean
@@ -79,6 +81,7 @@ public class Mos4jAutoConfiguration {
                         ObjectProvider<GuardBus> guards,
                         ObjectProvider<HookBus> hooks,
                         ObjectProvider<PostHook> postHook,
+                        ObjectProvider<PathScopeProbe> pathScopeProbe,
                         Environment environment) throws IOException {
         ApprovalChannel approvalChannel = approvals.getIfAvailable();
         if (properties.getApprovals().isRequired() && approvalChannel == null) {
@@ -97,7 +100,13 @@ public class Mos4jAutoConfiguration {
         if (chatModel == null) {
             String apiKey = resolveApiKey(properties, environmentSnapshot);
             chatModel = Mos4j.defaultModel(properties.getProtocol(), apiKey,
-                    properties.getBaseUrl(), properties.getModel(), environmentSnapshot);
+                    properties.getBaseUrl(), properties.getModel(), environmentSnapshot,
+                    properties.getRequireFinish());
+        } else if (properties.getRequireFinish() != null) {
+            throw new IllegalStateException(
+                    "mos4j: 配了 mos4j.require-finish，但模型是宿主自带的 ChatModel Bean——"
+                            + "这个开关只对 starter 自己装配的 Gemini 模型生效。"
+                            + "要控制它，请让 starter 装配模型（不提供 ChatModel Bean）。");
         }
 
         // 门面接的是**已经装配好的模型**：所以这里不再传 api-key / model 名，
@@ -106,7 +115,6 @@ public class Mos4jAutoConfiguration {
                 .model(chatModel)
                 .protocol(properties.getProtocol())
                 .systemPrompt(properties.getSystemPrompt())
-                .fileTools(properties.isFileTools())
                 .concurrency(properties.getConcurrency())
                 .maxDecisionRounds(properties.getMaxDecisionRounds())
                 .stream(properties.isStream())
@@ -123,6 +131,27 @@ public class Mos4jAutoConfiguration {
         ToolRegistry registry = tools.getIfAvailable();
         if (registry != null) {
             builder.tools(registry);
+        }
+
+        // 路径强制：缺省 = 探一次能不能真用起来（不通就启动失败，fail-closed）；
+        // 宿主显式 disabled 时不装（Describe 会说清「shell 不受路径强制保护」）。
+        // 宿主可以提供一个 PathScopeProbe Bean 覆盖探测（例如受管环境里已知 apply 被拒）。
+        //
+        // 顺序要紧：先决定装不装，再装文件工具——fileTools() 会**立刻**装配 shell 工具，
+        // 那时路径强制的开关已经生效，晚了就变成「先按缺省探、再想关」。
+        if (properties.getPathScope() == Mos4jProperties.PathScopeMode.DISABLED) {
+            builder.noPathScope();
+        } else {
+            PathScopeProbe probe = pathScopeProbe.getIfAvailable();
+            if (probe != null) {
+                builder.pathScopeProbe(probe);
+            }
+        }
+        builder.fileTools(properties.isFileTools());
+
+        // 输出上限（模型级配置；配了就真的进每个请求）。
+        if (properties.getMaxTokens() != null) {
+            builder.maxTokens(properties.getMaxTokens());
         }
 
         // 输出限流：默认装上（上下文是稀缺资源；不限流时一个大输出就能撑爆窗口）。
@@ -148,6 +177,29 @@ public class Mos4jAutoConfiguration {
         if (skills.getDirs() != null && !skills.getDirs().isEmpty()) {
             builder.skills(skillDirs(skills.getDirs(), workspaceOf(properties)));
             builder.skillLimits(skills.getMaxBodyBytes(), skills.getMaxCatalogBytes());
+        }
+        // 上下文文件：不配就不装（自动扫工作区会让每次启动的提示词都可能不一样）。
+        // 相对路径按 workspace 解析；读不到文件不报错——那是「项目没写约定文件」，
+        // 但被裁剪/丢弃的会进 Describe caveats（静默丢内容 = 模型以为项目没这条规矩）。
+        Mos4jProperties.ContextFiles contextFiles = properties.getContextFiles();
+        if (contextFiles.getDir() != null && !contextFiles.getDir().isBlank()) {
+            Path dir = Path.of(contextFiles.getDir()).isAbsolute()
+                    ? Path.of(contextFiles.getDir()).normalize()
+                    : workspaceOf(properties).resolve(contextFiles.getDir()).normalize();
+            if (contextFiles.getCandidates().isEmpty()) {
+                builder.contextFiles(dir);
+            } else {
+                builder.contextFiles(contextFiles.getCandidates(), dir);
+            }
+            if (contextFiles.getByteBudget() != null) {
+                builder.contextFileByteBudget(contextFiles.getByteBudget());
+            }
+            if (contextFiles.getMaxDepth() != null) {
+                builder.contextFileMaxDepth(contextFiles.getMaxDepth());
+            }
+            if (contextFiles.getGlobalDirs() != null) {
+                builder.contextFileGlobalDirs(contextFiles.getGlobalDirs());
+            }
         }
         return builder.build();
     }

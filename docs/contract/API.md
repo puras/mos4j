@@ -45,7 +45,7 @@
 
 ### 1.3 载荷类型字段名
 
-**ToolCall**（`net.hegq.mos4j.llm.model`）：
+**ToolCall**（`net.hegq.mos4j.model.model`）：
 
 | Java 字段 | JSON 键 | 说明 |
 |---|---|---|
@@ -85,7 +85,7 @@ public final class Session {
 
 ---
 
-## 3. Guard / Hook 契约（`mos4j-hook`，J2 已落地）
+## 3. Guard / Hook 契约（`mos4j-tool`，J2 已落地）
 
 Go 侧 `Decision` / `HookEvent` 无 json tag（进程内值对象，不落日志）→ Java 同样走构造器/record，字段名不进本清单。**双轨制（I5）**：`GuardEvent` 与 `HookEvent` 是**两个不同类型**，公开 API 里不得互相出现（`DualTrackStructureTest` 守护）。
 
@@ -164,13 +164,13 @@ public final class ApprovalService implements ApprovalChannel {   // 通道异�
 
 四档语义：**未装配 = 拒绝**（ask 无通道 → fail-closed）、**每次问**（批准不缓存）、**通道故障 = unavailable**（不冒充人工拒绝）、**人工拒绝保留拒绝状态**（含「不许绕」半句）。
 
-### 3.2 执行编排顺序（`mos4j-execpath`，与 `INVARIANTS.md` I5 一致）
+### 3.2 执行编排顺序（`mos4j-agent`，与 `INVARIANTS.md` I5 一致）
 
 `工具存在性 → 守卫（deny/cancel 短路，ask 记下）→ 钩子链 → 载荷冻结检查 → 审批 → 执行（执行前再查冻结）→ 回填（按调用序）→ 执行后钩子（只能加重）`
 
 守卫排在钩子前面：安全判定不应发生在扩展代码之后。审批排在冻结检查之后：不为反正会被拒的调用打扰人。守卫判定的仍然就是最终载荷——任何改写都被冻结检查拒掉，能执行下去的载荷必然就是守卫看到的那一份（机制 M1）。
 
-### 3.3 名字级 / 参数级策略（`mos4j-policy`）
+### 3.3 名字级 / 参数级策略（`mos4j-tool`）
 
 ```java
 public final class ToolNamePolicy implements Guard {          // allow 未配置 = 不限制；allow 配成空集 = 全禁
@@ -201,7 +201,7 @@ public final class ParamPolicy implements Guard {             // 参数规则取
 ### 3.4 文件与沙箱（J3 已落地）
 
 ```java
-// ---- mos4j-fs：jail + 写前观察门 ----
+// ---- mos4j-runtime：jail + 写前观察门 ----
 public final class RootSet {                                  // 活根集合：加根是追加，锚点不变
     public static RootSet of(Path anchor) throws IOException;  // 锚点 = 相对路径的基准，永不变动
     public RootSet add(String mountId, Path dir) throws IOException; // 追加；对下一次调用立即生效
@@ -234,7 +234,7 @@ public record VersionToken(long dev, long ino, long size, long mtimeNs, boolean 
     public String value();                                    // dev:ino:size:mtimeNs 或 size:mtimeNs
 }
 
-// ---- mos4j-sandbox：进程隔离 ----
+// ---- mos4j-runtime：进程隔离 ----
 public final class LocalRunner implements Runner {             // 工作目录与环境由宿主固定
     public static Builder builder(Path workingDirectory);
     public Duration effectiveTimeout(RunRequest request);     // min(请求 ?? 缺省, 上界)
@@ -296,7 +296,7 @@ Go 侧 = `read` / `write` / `edit` / `shell`（Go 仓库从未出现 `read_file`
 ### 3.5 上下文工程（J4 已落地）
 
 ```java
-// ---- mos4j-context：输出限流 ----
+// ---- mos4j-session：输出限流 ----
 public final class Truncation {                             // 行/字节双限 + 按工具定向保留
     public static final int DEFAULT_MAX_LINES = 2000;
     public static final int DEFAULT_MAX_BYTES = 50 * 1024;
@@ -325,7 +325,7 @@ public final class ToolOutputLimiter {                       // 先截断、再�
     }
 }
 
-// ---- mos4j-context：压缩 ----
+// ---- mos4j-session：压缩 ----
 public record CompactionPolicy(Long contextWindow, int reserveTokens, int keepRecentTokens) {
     public static CompactionPolicy of(long contextWindow, int reserveTokens, int keepRecentTokens);
     public boolean enabled();                                 // 未配置 contextWindow = 永不触发
@@ -361,7 +361,7 @@ public record CompactionResult(boolean compacted, long firstKeptSeq, String summ
                                int tokensBefore, List<String> warnings) {
 }
 
-// ---- mos4j-context：提示词分节 + 上下文文件 + 任务状态 ----
+// ---- mos4j-session：提示词分节 + 上下文文件 + 任务状态 ----
 public final class PromptSections {                          // 装配期只渲染一次
     public static final List<String> CANONICAL_ORDER =
             List.of("base", "environment", "context", "instructions", "tools");
@@ -413,7 +413,7 @@ public final class Auditor {                                 // 审计门：封�
 }
 ```
 
-**驱动接线**（`mos4j-driver`）：
+**驱动接线**（`mos4j-agent`）：
 
 ```java
 public final class RunContext {                              // 装配期决定、运行期只读
@@ -550,7 +550,7 @@ public final class Guidelines {                               // 聚合渲染（
 ### 3.7 三协议 + 硬化 + 门面（J6 已落地）
 
 ```java
-// ---- mos4j-llm：Anthropic 协议（T6.1/T6.2）----
+// ---- mos4j-model：Anthropic 协议（T6.1/T6.2）----
 public record AnthropicConfig(String apiKey, String baseUrl, String model,
         String version, Duration timeout, Map<String,String> extraHeaders) {
     public static AnthropicConfig of(String apiKey, String baseUrl, String model);
@@ -565,7 +565,7 @@ public final class AnthropicChatModel implements ChatModel {   // PROVIDER = "an
     // Anthropic 口径 inputTokens 不含缓存 → freshInput = inputTokens；total 含缓存。
 }
 
-// ---- mos4j-llm：Gemini 协议（T6.3）----
+// ---- mos4j-model：Gemini 协议（T6.3）----
 public record GeminiConfig(String apiKey, String baseUrl, String model,
         Duration timeout, Map<String,String> extraHeaders) {
     public static GeminiConfig of(String apiKey, String baseUrl, String model);
@@ -580,7 +580,7 @@ public final class GeminiChatModel implements ChatModel {      // PROVIDER = "ge
     // functionCall.args 是完整对象 → 序列化为 ToolCall.args 字符串；同 id 跨 chunk 合并。
 }
 
-// ---- mos4j-llm：重试（T6.5，装饰器，默认不装配即透传）----
+// ---- mos4j-model：重试（T6.5，装饰器，默认不装配即透传）----
 public final class RetryPolicy {
     public static RetryPolicy ofDefaults();       // 5 次 / 500ms 起 / 20s 封顶
     public static Builder builder();              // maxAttempts/initialBackoff/maxBackoff/retryIf
@@ -593,7 +593,7 @@ public final class RetryingChatModel implements ChatModel {
     // 退避等待分片检查取消：等待中取消立即终止，不再发起下一次尝试。
 }
 
-// ---- mos4j-execpath：取消贯通（T6.4）----
+// ---- mos4j-agent：取消贯通（T6.4）----
 public final class ExecPath {
     // 新增重载：取消后未开始的调用回填「调用已取消，未执行」（错误结果，保持回填序与配对）；
     // 正在执行的不中断（协作式取消，诚实声明）；token=null 零开销。
@@ -601,7 +601,7 @@ public final class ExecPath {
             Options options, Security security, CancellationToken token);
 }
 
-// ---- mos4j-driver：取消贯通到驱动/决策器/智能体（加固批次）----
+// ---- mos4j-agent：取消贯通到驱动/决策器/智能体（加固批次）----
 public final class Agent {
     // 带取消的执行：已取消的轮次以 turn/end{interrupted} 收尾再抛 CancellationException
     // （不留孤儿 turn）；旧重载等价于 CancellationToken.none()（零开销）。
@@ -619,7 +619,7 @@ public interface Planner {
     default Action nextAction(List<Message> history, List<Tool> tools, CancellationToken cancellation);
 }
 
-// ---- mos4j-sdk：门面（T6.10）----
+// ---- mos4j-agent：门面（T6.10）----
 public final class Mos4j {
     public enum Protocol { OPENAI, ANTHROPIC, GEMINI }   // 缺省 OPENAI
     public static Builder builder();
@@ -654,7 +654,7 @@ public final class Mos4j {
                                          String model, Map<String, String> env);
 }
 
-// ---- mos4j-sdk：CLI（T6.9，单轮最小形态）----
+// ---- mos4j-agent：CLI（T6.9，单轮最小形态）----
 // 用法：mos4j --api-key KEY [--protocol openai|anthropic|gemini] [--base-url URL]
 //           [--model NAME] [--system PROMPT] [--workspace DIR] [--log-dir DIR]
 //           [--session ID] [--no-file-tools] "输入文本"
@@ -701,7 +701,7 @@ public final class Mos4jRunner implements AutoCloseable {
 
 ### 3.9 技能机制（J7 已落地，2026-11-07）
 
-> Go 的 `agent/skill` 的 Java 语义重写。**不新增模块**：落在 `mos4j-tool`（`tool/skill` 包）/ `mos4j-core` / `mos4j-session` / `mos4j-driver` / `mos4j-sdk`。
+> Go 的 `agent/skill` 的 Java 语义重写。**不新增模块**：落在 `mos4j-tool`（`tool/skill` 包）/ `mos4j-core` / `mos4j-session` / `mos4j-agent` / `mos4j-agent`。
 > 渐进式披露：**清单常驻系统提示词，正文调用时现读**。
 
 ```java
@@ -740,7 +740,7 @@ public interface SkillAudit {
     void allowedToolsMismatch(String name, List<String> missingAllowed) throws IOException;
 }
 
-// ---- mos4j-driver 门面（未装配技能目录时全部降级，不需空判断）----
+// ---- mos4j-agent 门面（未装配技能目录时全部降级，不需空判断）----
 public List<Skill> skills();                        // → List.of()
 public SkillReloadResult reloadSkills();            // → unchanged()
 public SkillCatalog.Expansion expandSkill(String text);  // → Expansion(text, false)
@@ -762,6 +762,307 @@ public SkillCatalog.Expansion expandSkill(String text);  // → Expansion(text, 
 | 正文标签转义 | 只转义正文里的 `<skill_content` / `</skill_content` → `&lt;...`（防提前闭框），其余尖括号原样保留 |
 | digest | `reload()` 的变更判定只含**元数据**（name / description / whenToUse / disableModelInvocation / sorted tools / dir），不含正文 |
 | 沙箱 | 技能目录是**宿主给的路径**，不走工作区 jail；正文只经 `skill` 工具拿，不进 `read` 的文件工具面 |
+
+### 3.10 路径强制的出口与协议旋钮（Q1 / Q2′ / Q4 / Q5，2026-11-07 已落地）
+
+> 评审问题 Q1–Q8 的**实施产物**（Q3/Q8 维持现状）。**不改契约清单、不改事件名、不改 12 模块边界**。
+
+```java
+// ---- mos4j-runtime：动态写根 + 可用性探测 ----
+public interface PathScopeFactory {                       // 平台分支不上浮到门面
+    PathScope create(List<Path> writeRoots);
+}
+
+public interface PathScopeProbe {                          // 「这台机器能不能真用起来」
+    Result probe();
+    record Result(boolean available, String detail) {
+        public static Result available(String detail);
+        public static Result unavailable(String detail);
+    }
+}
+
+// LocalRunner.Builder（mos4j-runtime）
+public Builder pathScope(PathScope scope);                             // 静态装配
+public Builder pathScopeSupplier(Supplier<List<Path>> writeRoots);    // 动态：每次 run 现取
+public Builder pathScopeFactory(PathScopeFactory factory);            // 按写根现造 scope
+public Builder noPathScope(String reason);                             // 显式关闭（记录原因）
+```
+
+```java
+// ---- mos4j-agent：门面出口（Q1 / Q4 / Q5）----
+public Builder pathScope(PathScope scope);            // 宿主指定（也要探可用性）
+public Builder noPathScope();                         // 显式关闭（Describe 会声明）
+public Builder pathScopeProbe(PathScopeProbe probe);  // 注入探针（测试 / 受管宿主）
+public Builder requireFinish(Boolean requireFinish); // 只对 Gemini 生效；用错 → fail-fast
+public Builder maxTokens(Integer maxTokens);         // 模型级缺省 → Config → ReActPlanner → Request
+
+// 静态缺省模型装配（starter 也走这条；协议校验在这里，**唯一真源**）
+public static ChatModel defaultModel(Protocol protocol, String apiKey, String baseUrl,
+                                     String model, Map<String, String> env, Boolean requireFinish);
+```
+
+```java
+// ---- mos4j-agent：模型级输出上限（不改 Request 结构）----
+Config.Builder.maxTokens(Integer maxTokens);   // → Config.defaultMaxTokens() → ReActPlanner → Request.maxTokens
+```
+
+```yaml
+# ---- mos4j-spring-boot-starter（新增 3 个属性，共 26 个）----
+mos4j:
+  path-scope: auto        # auto（缺省：探一次，不通就启动失败）| disabled（显式不装）
+  require-finish: false   # 只对 Gemini 生效；用错协议 → 启动失败
+  max-tokens: 4096        # 输出上限（进每个请求）
+```
+
+```bash
+# ---- CLI（mos4j-agent）----
+mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主机）
+```
+
+**契约要点**：
+
+| 项 | 口径 |
+|---|---|
+| 显式关闭 | `noPathScope()` **不是静默降级**：Describe 的 caveat 写「路径强制=未装配（原因：宿主显式关闭…）」+「shell 可写 jail 之外的目录」 |
+| 探测时机 | **装配期**（不让模型在第 N 轮才说「命令失败了」）；不通 → 抛 `IllegalStateException`，文案给两条出路（换机器 / 显式关闭），并声明「不会退化成没隔离的假装隔离」 |
+| 探针可注入 | `Mos4j.Builder.pathScopeProbe(...)` / starter 的 `PathScopeProbe` Bean——测试与已知受管主机不必真跑 apply |
+| 动态写根 | 每次 `run()` 现取写根 + 现造 scope；写根为空 / 来源抛错 → **fail-closed**（命令不启动） |
+| 快照口径 | 静态装 / **动态装（说「已装配（动态写根）」而不是谎报未装配）** / 未装（并说清是「平台没有后端」还是「宿主显式关闭」） |
+| `requireFinish` | 只对 Gemini 生效；用在其他协议或宿主自带 `ChatModel` 上 **fail-fast**（不静默忽略） |
+| `maxTokens` | 模型级缺省，链路 `sdk → Config → ReActPlanner → Request`；不配就留空（用协议自己的缺省） |
+| 请求期 scope | Go 的 `sandbox.Request.PathScope` **有意不补**（Go 自己的 shell 工具也不传它）→ 登记为有意差异（D-J8-7） |
+
+---
+
+### 3.11 MCP 接入（`mos4j-tool` 的 `net.hegq.mos4j.mcp` 包，M0–M3 已落地）
+
+> 完整口径见 [`MCP-STATUS.md`](MCP-STATUS.md)。**2026-11-08 起 MCP 已并入 `mos4j-tool`**，进默认 reactor（`./mvnw verify` 就带它）；官方 MCP SDK 在本模块是 **optional 依赖**，宿主要用 MCP 须自己显式声明官方 SDK 坐标。
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 接上服务器 | `McpKit.attach(registry, configs)` | 刻意**不**放进 SDK 门面：官方 SDK 的传递依赖（slf4j / reactor / json-schema-validator）不进六模块基线 |
+| 编排 | `McpManager.start/reload/snapshot/close` | 两阶段换代（先并发取全量，再整体落盘）；失败隔离；scope 隔离（`mcp:<server>`）；失败保留上一代 |
+| 曝光三档 | `McpExposure.DIRECT/DEFERRED/HIDDEN` | 逐工具覆盖：精确名 > `"*"` > 服务器默认。hidden = 模型看不见、也搜不到，但宿主仍可程序化调用 |
+| 可见性槽 | `ToolRegistry.setVisibilitySlot(slot, filter)` | 具名槽：同名整层替换，多槽 **AND** 叠加，传 `null` 移除；过滤器必须纯判定 |
+| scope 换代 | `ToolRegistry.replace(scope, tools, deferred)` | 先校验整批（重名 / deferred 含名单外工具 / schema 失败）再落盘；失败时注册表**保持原样** |
+| 说明注入 | `Config.mcpInstructions(Supplier<String>)` | 每会话一次（`Session.claim`）；走 user 侧（写一条 user 事件），不进静态系统提示词；32KB 预算**整段**省略 |
+| 快照 | `McpSnapshot` | 每台服务器：状态（CONNECTED / FAILED / DISABLED）+ 各档工具数 + 失败原因 |
+| **认证** | `McpServerConfig.withTokenProvider(McpTokenProvider)` | 每次请求取一次、**不缓存**；空串不注入 `Authorization`；取凭据失败 = 认证类错误 |
+| **认证分类** | `McpError.Kind.AUTH` / `McpError.auth(msg, cause)` | 401 / 403 归**认证类**（不是传输、不是协议） |
+| **资源契约** | `McpClient.listResources() / listResourceTemplates() / readResource(uri)` | 官方 SDK 类型不外泄；二进制只给长度与类型 |
+| **资源工具** | `McpResourceTools.LIST_NAME / TEMPLATES_NAME / READ_NAME` | 三个**共享**工具（`mcp_resource_list` / `mcp_resource_templates` / `mcp_resource_read`）；工具面**恒为 3**，显式 `server` 参数路由；不进内置 14 工具冻结清单 |
+| **分节** | `McpKit.serversSection()` + `PromptSections` 的 `mcp_servers` | 中心顺序：技能清单 → **MCP 服务器摘要** → 工具指引 |
+| **Describe 补充** | `McpKit.describeContributor()` | 工具层往装配层的槽写装配事实；该 SPI 下沉到 `net.hegq.mos4j.core`（零依赖），避免 tool → agent 与 agent → tool 成环 |
+| **结果投影** | `McpCallResult.toModelText()` / `opaqueParts()` / `textContent()` | 文本直接给模型；非文本给**按类型分开**的占位诊断（image / audio / resource / resource_link / 未知）；原始 JSON 上限 2048；类型名与原始内容留在 `opaqueParts()` 里给程序化调用方 |
+| **参数校验** | `McpToolAdapter` 本地校验参数是 JSON 对象 | 不是对象 → **协议层**错误（fail-closed）；上游没给结果 → 协议层错误（不当成空成功） |
+
+**有意差异**：stdio 无工作目录（D-MCP-1）、公开名截断保证合法 UTF-8（D-MCP-2）、调用期超时暂归协议层（D-MCP-3）、跨 scope 同名直接报错（D-MCP-4）、会话级标记只在内存（D-MCP-5）。
+
+---
+
+### 3.12 policy 可见性 / 模型装饰器 / 模型目录 / Describe 与关闭（2026-11-07 已落地）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| policy 单一状态源 | `PolicySlot`（`install/policy/allows/check`） | **可见性与运行时守卫读同一份名单**——两份名单各写一遍就会出现「模型看得见却调不动」或「看不见却能调」 |
+| 装配 policy | `Config.Builder.policy(ToolNamePolicy)` / `Mos4j.Builder.policy(...)` | `Agent.of` 把可见性槽装到注册表（槽名 `policy`）；宿主自带 `GuardBus` 时复用同一条总线 |
+| 热替换 policy | `Agent.setPolicy(ToolNamePolicy)` | 只换 policy 层，**不覆盖 MCP hidden 槽**（槽具名独立、AND 叠加） |
+| 装饰器基类 | `ChatModelDecorator` + `delegate()` | **显式嵌套**，不引入隐式全局中间件链：组合顺序由调用方决定 |
+| 日志装饰器 | `LoggingChatModel(model, sink)` + `CallRecord` | 成功或失败**统一上报一次**；回调自身抛错**继续传播**（不让观测影响主流程） |
+| 超时装饰器 | `TimeoutChatModel(model, duration)` | 协作式取消；**外部取消优先于超时**；外部已取消时**不调用模型**；超时抛 `ModelTimeoutException` |
+| 降级装饰器 | `FallbackChatModel(primary, backup)` | 只在主模型**运行时失败**时降级；`CancellationException` **不降级**（取消不是失败）；能力集取并集 |
+| 模型目录 | `ModelOption` / `Config.Builder.models(...)` / `defaultModelId(...)` | 保序；重复 ID 与未知 ID **fail-closed**；切换**下一轮生效**；**凭据只留在模型对象里**，不进快照与公开描述 |
+| 运行期切换 | `Agent.setModel(id)` / `modelId()` / `models()` | 不重建 Agent |
+| Describe 补充者 | `DescribeContributor.contribute(facts, caveats)` | 贡献者失败转成 caveat，**不让整个快照不可用** |
+| 关闭 | `Config.Builder.closer(AutoCloseable)` + `Agent.close()` | `Agent implements AutoCloseable`；**幂等**；逐个关；一个关不掉**不阻止**关别的；最后抛包装后的 `IllegalStateException` |
+
+**明确不做**：装饰器 `Cache`（用户口径：可缓）；Windows 后端；Starter 接 MCP；模型目录的凭据持久化。
+
+---
+
+### 3.12.1 技能（skill）的 CLI 入口与并发口径（2026-11-07 已落地）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| CLI 技能目录 | `mos4j --skills DIR`（**可重复**） | 目录里放 `SKILL.md`；转给 `Mos4j.Builder.skills(Path...)`；技能清单进**系统提示词**（会话日志不记 system prompt）；Go 的 CLI 没有这个开关 → 属自创参数面（SI-38） |
+| 并发 reload | `SkillCatalog.reload()` | 换代是**原子**的（`AtomicReference` 换快照）：并发 reload + 并发读不会看到半套状态（重名 / 半截清单 / 空快照） |
+
+---
+
+### 3.13 对外版本号（发布收口，2026-11-07 已落地）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 版本号真源 | 父 POM 的 `<version>`（`net.hegq:mos4j:0.1.0-SNAPSHOT`） | **只有这一处**是真源；改版本号只改它 + `Version.VERSION` |
+| 对外投影 | `net.hegq.mos4j.core.Version.VERSION` / `Version.version()` | 纯常量，**不读** `META-INF/maven/…/pom.properties`（开发期与发布期取值必须一致）；不含构建时间戳（可复现构建） |
+| 门面出口 | `Mos4j.version()` | 宿主写日志 / 贴 issue / 报服务端的统一出口，不要各处拼字符串 |
+| CLI | `mos4j --version` | 打印 `mos4j <version>`，退出码 0 |
+| 机械门 | `VersionTest`（3 条：格式 / 与父 POM 对齐 / 访问器一致） | 改了 POM 忘了改常量 → 发布前变红 |
+
+---
+
+### 3.14 Go 差异补齐批次（#5 / #7 / #9，2026-11-07 已落地）
+
+> 背景：2026-11-07 的源码级初查识别出 10 处 Go↔Java 差异，用户选定**只补这三项**。Go 原测试名对位见 [`INVARIANT-TESTS.md`](INVARIANT-TESTS.md) §3.8。
+
+#### 3.14.1 上下文文件装配（#7）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 装配入口 | `Mos4j.Builder.contextFiles(Path dir)` | 目录**不存在或不是目录** → 装配期失败（fail-closed，宿主配置错了不是可降级故障） |
+| 候选名 | `contextFiles(List<String> candidates, Path dir)` | 缺省与 Go 同名单同顺序：`AGENTS.override.md` > `AGENTS.md` > `AGENTS.MD` > `CLAUDE.md` > `CLAUDE.MD`（同目录取第一个命中） |
+| 读取器 | `contextFileReader(ContextFileReader reader)` | 缺省读本地文件系统；虚拟文件系统宿主注入自己的读取器（`readIfExists` / `realPath` / `parentOf` / `join` / `isDirectory`） |
+| 字节预算 | `contextFileByteBudget(int bytes)` | 缺省 32KB；**负数 = 不限**；裁剪优先落在行边界；预算用完 → 后续文件不加载 + warning |
+| 递归层数 | `contextFileMaxDepth(int depth)` | 缺省 **0**（只看起始目录本身）；负数 = 不限（走到顶） |
+| 全局目录 | `contextFileGlobalDirs(List<String> dirs)` | 缺省 `~/.mos`（`~` 自动展开）；给空列表 = 不读全局目录 |
+| 进提示词 | 装配期把合并正文追加到**系统提示词**末尾 | 包装成 `<project_instructions path="...">` 块，块前有标题「项目约定与指引（来自以下上下文文件）：」；**不进会话 JSONL 日志** |
+| 降级留痕 | `Describe()` 的 features / caveats | 文件数与字节数进 features；读失败 / 裁剪 / 丢弃 / 预算不足进 caveats（**不静默丢内容**） |
+| Starter | `mos4j.context-files.{dir,candidates,byte-budget,max-depth,global-dirs}` | 相对路径按 `mos4j.workspace` 解析（不是进程 CWD）；**不配就不装**（自动扫工作区会让每次启动的提示词都可能不一样） |
+
+#### 3.14.2 运行期根目录管理（#9）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 加根 | `Agent.addRoot(String id, Path dir)` | 读写都放行；**立即生效**（边界每次调用现判）；挂载名重复 → 报错（不静默覆盖） |
+| 只读根 | `Agent.addReadRoot(String id, Path dir)` | 能读不能写（`read` 放行，`write` / `edit` 拒绝） |
+| 只写根 | `Agent.addWriteRoot(String id, Path dir)` | 能写不能读 |
+| 移除根 | `Agent.removeRoot(String id)` | 收窄边界；**锚点根不可移除**；移除不存在的根 → 报错（不假装成功） |
+| 查看 | `Agent.roots()` | 当前全部根的快照（不可变） |
+| 未装根集合 | `Agent.addRoot(...)` / `roots()` | **明确报错**（`UnsupportedOperationException`）——不假装能管根 |
+| 边界一致 | 同一份 `RootSet` 同时进文件工具与 shell 沙箱 | 会话里加的根，**命令也跟着能写**（不出现「工具能写、命令写不了」的错位）；**只读根不进 shell 的写范围**（写根只取 `writable` 的根，对齐 Go 的 `RootsFor(OpWrite)`） |
+
+> **与 Go 的形状差异**：Go 是 `AddRoot(dir)`（按目录路径），Java 是 `addRoot(id, dir)`（按**挂载名**，与 `RootSet` 既有语义一致）——登记为 SI-42。
+
+#### 3.14.3 压缩三开关（#5）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 显式关闭 | `Mos4j.Builder.disableCompaction(boolean)` | 与已装的 `compaction(...)` **同时出现 → 装配期报错**（Go 是「显式关闭优先」，Java 是 fail-fast → SI-39） |
+| 摘要超时 | `Mos4j.Builder.summaryTimeout(Duration)` | 缺省 3 分钟；`Duration.ZERO` = 不限；**负值 → 拒绝**（Go 用负数表示不限 → SI-40）；超时经虚拟线程隔离，超时后取消摘要任务 |
+| 失败策略 | `compactionFailurePolicy(CompactionFailurePolicy)` / `onCompactionFailure(Consumer<Exception>)` | 缺省 `FAIL_CLOSED`（本轮失败）；`SKIP_AND_CONTINUE` → 记提示、跳过压缩、本轮继续（`turn/end.reason="completed"`） |
+| 不写失败事件 | — | 冻结字段清单里没有 `failed` 字段 → 压缩失败**不写** `compaction` 事件（半截事件会破坏投影）；失败原因只经回调交给宿主 |
+
+### 3.15 Go 差异补齐批次（#1 / #2 / #3 / #4 / #6 / #8 / #10 / #11 / #12 / #13，2026-11-08 已落地）
+
+> 背景：2026-11-07 的源码级初查 + 同日逐行复核共识别出 13 处 Go↔Java 差异，全部在本批次补齐。逐条差异语义见 [`GO-DIFF.md`](GO-DIFF.md)，自创口径见 [`SELF-INVENTED.md`](SELF-INVENTED.md)（SI-43…SI-51）。
+
+#### 3.15.1 子代理（#1）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 装配入口 | `Mos4j.Builder.subAgents(Path... dirs)` / `subAgentDirs(List<String> dirs)` | 目录**不存在或不是目录** → 装配期失败；目录列表本身就是**授权范围**（框架不自行扫描文件系统） |
+| 读取器 | `subAgentReader(SubAgentReader reader)` | 读文件与列目录都走注入的读取器（虚拟文件系统宿主用） |
+| 定义文件 | 固定 `AGENT.md` | frontmatter 字段：`name` / `description` / `model` / `tools`；名字缺失 → 回退目录名；**描述缺失 → 定义不安装** |
+| 清单预算 | `subAgentMaxCatalogBytes(int)` | 缺省 8KB；超预算**先丢描述（留名字）再丢条目**，并如实写明省略数量 |
+| 超时 | `subAgentTimeout(Duration)` | 缺省 5 分钟；`Duration.ZERO` = 不限；**负值拒绝** |
+| 运行器接缝 | `subAgentRunner(SubAgentRunner runner)` | 宿主可注入自定义 runner（测试与离线场景用） |
+| 工具名 | `subagent__<name>` | 名字长度上限 64；**默认独占**（不声明 `concurrencySafe=true`） |
+| 工具参数 | 只有必填 `task` + 可选 `context` | 参数 schema 不带 `title` / `$defs`（与既有工具面同一约定） |
+| 工具面 | 声明白名单 ∩ **父当前可见工具集** | 父可见集是安全上限（deny 优先）；恒定排除 `subagent__*` 与 `tool_search`；子代理深度固定为 0 |
+| 模型覆盖 | frontmatter 的 `model` | 覆盖模型不在宿主模型目录 → **装配期硬失败**；未覆盖 → 继承父模型 |
+| 子会话 | `SubAgentSessionFactory.open(String id)` | 独立会话（不与父会话混用）；SDK 缺省工厂用实际 `JsonlPersistence` |
+| 清单位置 | 系统提示词 `subagents` 段（中心顺序） | 装配期渲染一次即固定（保 prompt cache）；**子代理正文调用时现读**（改了 `AGENT.md` 无需重扫） |
+| 回执 | 固定 `{status, summary, findings, error}` | `status` ∈ `completed` / `error` / `timeout`；非 JSON 最终回答**整段降级为 `summary`**；非法回执 → `status=error` 的普通工具结果 |
+| 失败语义 | 子代理失败 / 超时 / 坏回执 | 全部转成**普通工具结果**，不让父轮次直接失败（父模型看见的是一次失败的调用，不是崩溃） |
+| `ToolContext` | `ToolContext(turn, sessionId, cancellation)` | 工具执行上下文放 `mos4j-core`（不让 tool 层反向依赖 session 层）；`Tool.execute(String, ToolContext)` 默认回退旧 `execute(String)` |
+
+#### 3.15.2 续跑（#2）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 入口 | `Mos4j.resume(String sessionId, ResumeOptions)` / `Agent.resume(Session, ResumeOptions)` | **宿主显式指示后才执行**；不自动拾取挂起轮次（那等于替宿主决定副作用要不要重做） |
+| 选项 | `ResumeOptions.latest()` / `ofTurn(int)` / `withCalls(String...)` | 沿用**原轮次号**（审批决定的复用键是 `(轮次, 调用 id)`）；不指定轮次 → 最近一轮 |
+| 无可续 | `NothingToResumeException`（checked） | 抛异常且**那一轮保持挂起**（不写 `turn/end`：收尾等于把「还欠一次调用」的事实抹掉） |
+| 载荷 | 从日志**原样重放** | 不重新构造参数（重放 = 可对拍） |
+| 执行 | 走**普通 ExecPath 安全链** | 审批 / 守卫 / 钩子 / 投影 / 审计一个不少；回填**真实** `tool/result` |
+| 循环 | 与普通轮**共享同一个 ReAct 决策循环** | 续跑只在前段补齐悬空调用，不另造绕过安全链的平行链 |
+
+#### 3.15.3 审批先验（#3）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| SPI | `ApprovalPrior.lookup(int turn, String toolName, String callId)` | core 的**只读**接口；当前轮次由 `ExecPath.Options.turn` **外部绑定**（`ApprovalRequest` 没有 `turn` 字段） |
+| 实现 | `SessionApprovalPrior(Session)` | `mos4j-session` 提供（读日志，不写） |
+| 复用条件 | 同轮 + 同 call id + **同工具名** + 调用**仍悬空** | 已完成的调用**不**复用旧批准（否则一次批准被放大成无限次） |
+| 可复用的决定 | `APPROVED` / `REJECTED` | `CANCELLED` / `UNAVAILABLE` **不可**复用（不是真决定） |
+| 审计 | 复用时**签发新审批 id**，旧 id 写进新 `approval/asked.reason` | `approval/decided` 仍只写 `outcome`；**不新增 `reusedFrom` 字段**（冻结字段清单不能动，SI-46） |
+| 通道检查 | 未装审批通道时即使命中 prior 也 **fail-closed** | 不因为「以前批过」而绕过通道 |
+| 装配 | `ExecPath.Options.withPrior(int turn, ApprovalPrior prior)` | 普通轮与续跑轮**都装** prior（prior 不是续跑特例） |
+
+#### 3.15.4 会话派生读（#4）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 待答审批 | `Session.pendingApprovals()` | 按 **approval id** 配对 `approval/asked` / `approval/decided` |
+| 审批结果 | `Session.approvalOutcome(String id)` | 返 `ApprovalOutcome`（`approved` / `rejected` / `cancelled` / `unavailable`） |
+| 同轮决定 | `Session.approvalDecision(int turn, String callId)` | 先验复用的匹配键 |
+| 中断轮次 | `Session.interruptedTurn()` | `turn/start` 有、`turn/end` 无或 `interrupted` 的最后一轮 |
+| 悬空调用 | `Session.hangingCalls()` → `List<HangingCall>` | `record HangingCall(int turn, String callId, String toolName, String args, long seq)`；按 **tool call id** 配对 |
+| 纯读 | 五个方法都不写日志、不改状态、不推进序号、不新增事件类型 | **空 call id 无法配对，不算悬空**；同一 call id 只要已有一次 result，后续同 id call 不再算悬空 |
+| 与投影的区别 | 投影给孤儿调用合成**失败回执**（给人看） | 派生读报的是**日志事实**（宿主据此决定要不要续跑）——两者不可互相替代 |
+
+#### 3.15.5 协议注册表（#6）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 注册 | `ModelRegistry.register(String name, Factory factory)` | 工厂签名 `ChatModel create(Map<String, String> config) throws Exception`；同名注册**覆盖** |
+| 创建 | `ModelRegistry.create(String name, Map<String, String> config)` | 未知名字 → **fail-closed** 并列出已注册名字 |
+| 名字列表 | `ModelRegistry.names()` | 排序且不可变；另有 `contains(String)` / `size()` |
+| 边界 | 只做「名字 → 工厂」映射，**生产裸 `ChatModel`** | 横切能力（日志 / 超时 / 回退 / 缓存）仍由调用方用装饰器**显式组合**，不引入隐式全局顺序 |
+
+#### 3.15.6 可注入提示词构建器（#8）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 注入 | `Mos4j.Builder.prompt(PromptSections.Builder)` / `Config.Builder.prompt(...)` | 与 `systemPrompt(...)` **互斥**：同时给 → fail-closed；**空白整串按未提供处理** |
+| 框架装配 | 在宿主 Builder 的**副本**上添加 `context` / `skills` / `subagents` 分节 | 宿主持有的那份**保持原样**；宿主已放同名段 → **明确报错**（不静默覆盖、不重复添加） |
+| 中心顺序 | `base` → `environment` → `context` → `skills` → `mcp_servers` → `subagents` → `instructions` → `tools` | `PromptSections.Builder.has(String)` 让宿主能问「这段有没有被占」 |
+| 老路径 | `PromptSections.insert(rendered, name, content)` | 整串提示词路径继续可用（技能 / 子代理清单按中心顺序插入） |
+
+#### 3.15.7 取消原因（#11）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 带因取消 | `CancellationToken.cancel(Throwable reason)` | **首次**取消携带的原因生效（先到先得），后续取消不覆盖 |
+| 读原因 | `CancellationToken.cause()` | 未取消或无原因 → `null`（「没被取消」不是「被取消了」） |
+| 无因取消 | `CancellationToken.cancel()` | 保留原语义（`cause()` 仍为 `null`） |
+| 解释 | `throwIfCancelled()` / `turn/end.error` / driver 抛出的异常 | 都解释具体原因；**不新增冻结事件字段**（原因只进已有的 `error` 字段） |
+| 传播 | `TimeoutChatModel` | 外部取消原因向内传播；超时取消不带外部原因 |
+
+#### 3.15.8 运行期可调参数（#12）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 并发上限 | `Agent.setConcurrency(int)` / `Agent.concurrency()` | 每轮开始时现取；仍受**显式 opt-in** 约束 |
+| 决策轮数上限 | `Agent.setMaxDecisionRounds(int)` / `Agent.maxDecisionRounds()` | 驱动**每轮开始时**读取当前轮数上限 |
+| 参数级规则 | `Agent.setRules(ParamPolicy)` / `Agent.rules()` | 装配期必须先装过 `ParamPolicy`（`Config.Builder.paramPolicy(...)`），否则 **fail-closed**；工具执行前读取当前值 |
+| 槽位隔离 | 名字级 `PolicySlot` 与参数级 `ParamPolicySlot` **状态独立** | 热替换参数规则不动可见性名单 |
+
+#### 3.15.9 本地缓存装饰器（#13）
+
+| 能力 | API | 口径 |
+|---|---|---|
+| 装配 | `new CachingChatModel(ChatModel delegate, Duration ttl)` | 只缓存**非流式**成功结果；**流式调用不缓存**；与服务端 prompt cache **不是一回事** |
+| 过期 | `ttl <= 0` | 表示**不过期** |
+| 命中 | 返回**同一个 `Response` 对象** | 缓存响应按**共享只读对象**处理 |
+| 取消 | 取消检查**先于**缓存命中 | 已取消的调用不返回缓存 |
+| 不缓存 | 失败 / 空响应 | 都不进缓存 |
+| 缓存键 | 消息正文、reasoning、tool call、工具清单、schema、采样参数、response format、modalities | schema map 键**递归排序**后取 SHA-256（顺序不同 → 不同键） |
+| 维护 | `size()` / `clear()` | 当前**没有** per-key single-flight（同键并发会各调一次下游） |
+
+#### 3.15.10 示例程序集（#10）
+
+| 项 | 口径 |
+|---|---|
+| 位置 | `examples/`（7 个示例模块 + 共享 `examples/testkit`） |
+| 构建 | 默认**不进 reactor**：`./mvnw -Pexamples verify`；MCP 示例再叠 `-Pexamples,mcp`（局部 profile） |
+| 依赖 | 每个示例**只声明自己真的 import 到的模块**（不靠聚合层或传递依赖「恰好能编译」）；`testkit` 仅 **test scope** |
+| 用例 | 脚本化模型替身（`StubModel`）真跑装配、工具链与循环；**不碰网络**（示例需要真 API Key，CI 跑不了） |
+| 目录 | `minimal` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`，每个目录一个 README |
+
+**发布清单**见 [`docs/release.md`](../release.md)；**发布说明草稿**见 [`CHANGELOG.md`](../../CHANGELOG.md)。
+
+
 
 ---
 
@@ -813,8 +1114,8 @@ public SkillCatalog.Expansion expandSkill(String text);  // → Expansion(text, 
 | Go | Java 对位 | 降级声明 | 落点 |
 |---|---|---|---|
 | `context.Context` 取消 | `CancellationToken`（Mos4J 自有） | 取消是协作式的；每个可阻塞点必须显式响应（清单随 `mos4j-core` 走） | `mos4j-core`（模型 / HTTP 层已生效；driver → planner → agent 已贯通，见 `J6-STATUS.md`） |
-| `syscall.Kill(-pgid)` | `ProcessHandle::descendants` + 逐个 destroy | **尽力而为、非原子**；写进 Javadoc 与 `Describe()` | `mos4j-sandbox` 的 `DescendantsKiller.description()` → `SandboxBoundary.caveats()` → `Describe()` |
-| 版本令牌 `dev:ino:size:ctime:...` | `dev:ino:size:mtimeNs` | **不含 ctime**：JDK 的 `unix:` 视图其实能读到 `ctime`，但冻结口径不收（跨平台语义不统一，有的文件系统读操作也会更新 ctime）；代价：只改元数据、内容不变的改动检测不到。CAS 防丢失更新仍有效但非原子（M7） | `mos4j-fs` 的 `VersionToken` → `FileSystemBoundary.caveats()` → `Describe()` |
+| `syscall.Kill(-pgid)` | `ProcessHandle::descendants` + 逐个 destroy | **尽力而为、非原子**；写进 Javadoc 与 `Describe()` | `mos4j-runtime` 的 `DescendantsKiller.description()` → `SandboxBoundary.caveats()` → `Describe()` |
+| 版本令牌 `dev:ino:size:ctime:...` | `dev:ino:size:mtimeNs` | **不含 ctime**：JDK 的 `unix:` 视图其实能读到 `ctime`，但冻结口径不收（跨平台语义不统一，有的文件系统读操作也会更新 ctime）；代价：只改元数据、内容不变的改动检测不到。CAS 防丢失更新仍有效但非原子（M7） | `mos4j-runtime` 的 `VersionToken` → `FileSystemBoundary.caveats()` → `Describe()` |
 | 反射 Schema（Go struct tag） | 注解 `@ToolParam` + 反射 | 反射失败 fail-closed：注册失败报错，不许静默空 schema | `mos4j-tool` 的 `SchemaGenerator` / `ToolRegistry` |
-| 三协议裁剪 DTO | 每协议独立 DTO（互不同形） | 拦「日志与协议同形」被拆散（边界检查 C3） | `mos4j-llm/protocol/{openai,anthropic,gemini}`（Anthropic / Gemini 属 J6） |
-| 正则 | RE2J | 禁 `java.util.regex`（CI 门 C6） | `mos4j-policy` |
+| 三协议裁剪 DTO | 每协议独立 DTO（互不同形） | 拦「日志与协议同形」被拆散（边界检查 C3） | `mos4j-model/protocol/{openai,anthropic,gemini}`（Anthropic / Gemini 属 J6） |
+| 正则 | RE2J | 禁 `java.util.regex`（CI 门 C6） | `mos4j-tool` |

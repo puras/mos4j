@@ -17,7 +17,7 @@ import java.util.List;
 public final class FieldNames {
 
     /** 冻结清单路径（classpath: 供守护测试读取）。 */
-    public static final String FROZEN_LIST_RESOURCE = "/llm/fieldnames.json";
+    public static final String FROZEN_LIST_RESOURCE = "/contract/fieldnames.json";
 
     // ---- Event（mos4j-session 事件，照抄 Go camelCase 混用不对称性） ----
     public static final String SEQ = "seq";

@@ -1,5 +1,7 @@
 # J7 状态（权威口径）
 
+> **布局说明（2026-11-08）**：SDK 已从**十二模块**合并为**六模块**（`core` / `model` / `runtime` / `tool` / `session` / `agent`）。本文记录的是合并**之前**的批次状态，文中模块名保留当时的写法；现行布局见 [`README.md`](../../README.md) 与 [`docs/contract/API.md`](API.md)。
+
 > 批次：**B16 / Jackson 3 升级**（J7 的前置）+ **J7 技能机制**（Go `agent/skill` 的 Java 语义重写）。
 > 收口日期：2026-11-07。任务分解见 [`../mos4j-tasks.md`](../mos4j-tasks.md) §12（T7.1–T7.11）。
 > **不新增模块**：能力落在既有 `mos4j-tool` / `mos4j-core` / `mos4j-session` / `mos4j-context` / `mos4j-driver` / `mos4j-sdk` / `mos4j-spring-boot-starter`，12 模块边界不变。
@@ -92,14 +94,14 @@
 - 默认 reactor `clean verify` → **BUILD SUCCESS**（13 项）；`-Pstarter clean verify` → **BUILD SUCCESS**（14 项）。日志：`.j7log2/verify-default.log` / `.j7log2/verify-starter.log` / `.j7log2/analyze.log`。
 - 依赖审计：12 个 SDK 模块 + starter 全 `No dependency problems found`。
 - 源码扫描（C6）：12 个 SDK 模块 `src/main` **+ `src/test`** 的 `import org.springframework` = 0、`import java.util.regex` = 0（`SkillCatalogTest` 的计数辅助方法刻意用 `String.indexOf`）；裸 NUL 字节（0x00）= 0。
-- 与历史对比：J1 107 → J2 172 → J3 266 → J4 340 → J5 379 → J6 416 → 加固 428 → Starter 430 → 含 Starter 444 → B13 449 → Jackson 3 ~450 → **J7 525（含 starter 542）** → **J8 537（含 starter 554）**。
-- **J8 后基线推移**（2026-11-07）：本表是 **J7 时点**的权威记录；J8 改动后的当前基线是 **537 通过 / 6 跳过**（含 starter **554/6**），增量 = `SandboxBoundaryTest` +7（14 → 21）、`LandlockScopeTest` +5（非 Linux 上整类跳过）；原有 1 条跳过（Seatbelt 真机强制）保留。以 [`J8-STATUS.md`](J8-STATUS.md) §5 为准。
+- 与历史对比：J1 107 → J2 172 → J3 266 → J4 340 → J5 379 → J6 416 → 加固 428 → Starter 430 → 含 Starter 444 → B13 449 → Jackson 3 ~450 → **J7 525（含 starter 542）** → **J8 543（含 starter 560）**。
+- **J8 后基线推移**（2026-11-07）：本表是 **J7 时点**的权威记录；J8 改动后的当前基线是 **543 通过 / 6 跳过**（含 starter **560/6**），增量 = `SandboxBoundaryTest` +13（14 → 27）、`LandlockScopeTest` +5（非 Linux 上整类跳过）；原有 1 条跳过（Seatbelt **强制效果**真机用例）保留——profile **语法**层已在本机验证。以 [`J8-STATUS.md`](J8-STATUS.md) §5 为准。
 
 ## 3. 契约变更（已获批准并落地）
 
 | # | 变更 | 落地证据 |
 |---|---|---|
-| 1 | 字段冻结清单 **75/68/`fd7b6c81…` → 80/71/`3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c`**（只并入 `skill`/`name`/`description`/`dir`/`missingAllowed` 5 条） | `docs/contract/fieldnames.json` 与 `mos4j-core/src/main/resources/llm/fieldnames.json` 两份一致；本轮用脚本重算条数/SHA 复核通过 |
+| 1 | 字段冻结清单 **75/68/`fd7b6c81…` → 80/71/`3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c`**（只并入 `skill`/`name`/`description`/`dir`/`missingAllowed` 5 条） | `docs/contract/fieldnames.json` 与 `mos4j-core/src/main/resources/contract/fieldnames.json` 两份一致；本轮用脚本重算条数/SHA 复核通过 |
 | 2 | 事件 +2：`skill/activate`、`skill/allowed-tools-mismatch` | `EventKind` / `SkillEvent` / `Event.skill` / `EventJson.writeSkill` |
 | 3 | 模型可见工具面 **13 → 14**（`skill(name)` **条件注册**） | `ToolContractTest`（14 工具冻结）；`SkillFlowTest`（无技能不注册） |
 | 4 | `mos4j-core` +1 公开接口 `SkillAudit` | `SkillAudit` + `SessionSkillAudit` |
@@ -136,7 +138,7 @@
 
 1. **G1–G6 人工语义评审未完成**：`REVIEW-SHEET.md` 已把 J7 新增项（SI-26…SI-29、B14 收口）摊成可签字行，但**判定必须由人填**。
 2. **Seatbelt 真机强制效果** 仍是唯一跳过用例（`sandbox_apply: Operation not permitted`），J7 未改变。
-3. **技能目录重扫的并发语义未做压测**：`reload()` 是原子快照替换（旧读者看到旧快照），但没有多线程并发 reload + 读取的随机化测试。
-4. **CLI 未接技能面**：`mos4j` 单轮 CLI 未加 `--skills` 参数（SDK / Starter 已接）。
-5. **`SkillTool` 的 mismatch 诊断不进模型结果**：这是决定（诊断是审计面），但如果宿主希望模型看见「你声明的工具不可用」需要自己读日志——当前没有出口。
-6. **工作区不是 Git 仓库**：改动无法用 `git diff` 汇总（`fatal: not a git repository`），本文件即为变更台账。
+3. **技能目录重扫的并发语义未做压测**：`reload()` 是原子快照替换（旧读者看到旧快照），但没有多线程并发 reload + 读取的随机化测试。**Go 侧也没有对应用例**（`agent/skill/reload_test.go` 7 条都不是并发）→ 属自选加固，不是对拍缺口。
+4. **CLI 未接技能面**：`mos4j` 单轮 CLI 未加 `--skills` 参数（SDK / Starter 已接）。**Go 侧同样没有**（Go 的 CLI 是 `examples/chat/lab` 示例程序，不带技能开关）→ 属**可选增强**，不是缺口；要做的话是一个新参数（需评审）。
+5. **`SkillTool` 的 mismatch 诊断不进模型结果**：**与 Go 一致**（Go 侧 `agent/skill/allowed_tools_test.go:TestMismatchNotInModelResult` 明确断言「诊断不进给模型的返回值」——工具面模型自己看不见，说了也无从行动）。**不是缺口**，是同口径；宿主想让模型知道「你声明的工具不可用」需要自己读日志。
+6. ~~**工作区不是 Git 仓库**~~ → **已解除**（J8 期间工作区已初始化为 Git 仓库）：改动可用 `git diff` 汇总。

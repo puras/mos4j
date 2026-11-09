@@ -52,6 +52,20 @@ public final class Texts {
         return "人工确认无人应答（fail-closed）: " + reason;
     }
 
+    /**
+     * 审批先验复用（同一轮内不重复问人）的审计线索。
+     *
+     * <p><b>为什么写在 reason 里</b>：事件字段清单已冻结，审批载荷里没有单独的
+     * 「复用了哪次决定」字段；不擅自新增字段，就把它写进 asked 事件的
+     * {@code reason}（只有 asked 事件带 reason，decided 不重复携带）。
+     *
+     * @param reusedFrom 被复用的那次审批 id
+     * @param reason     本次本来要问人的理由（守卫给的理由）
+     */
+    public static String priorReused(String reusedFrom, String reason) {
+        return "复用先验决定 " + reusedFrom + "（未再次询问）: " + reason;
+    }
+
     /** 投影合成中断回执（机制 M4）。 */
     public static String interruptedReceipt(String toolName) {
         return "（" + toolName + " 调用在执行期间被中断，没有结果；如仍需要请重新调用）";

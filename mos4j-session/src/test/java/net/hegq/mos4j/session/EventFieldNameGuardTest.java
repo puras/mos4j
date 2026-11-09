@@ -3,11 +3,11 @@ package net.hegq.mos4j.session;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import net.hegq.mos4j.core.FieldNames;
-import net.hegq.mos4j.llm.model.InputTokenDetails;
-import net.hegq.mos4j.llm.model.OutputTokenDetails;
-import net.hegq.mos4j.llm.model.ToolCall;
-import net.hegq.mos4j.llm.model.Usage;
-import net.hegq.mos4j.llm.model.UsageDetails;
+import net.hegq.mos4j.model.InputTokenDetails;
+import net.hegq.mos4j.model.OutputTokenDetails;
+import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.Usage;
+import net.hegq.mos4j.model.UsageDetails;
 
 import org.junit.jupiter.api.Test;
 

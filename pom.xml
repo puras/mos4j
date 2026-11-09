@@ -16,19 +16,34 @@
   <description>MoS4J: Java reimplementation of the MoS agent framework (reference semantics, SDK-first)</description>
   <url>https://github.com/puras/mos4j</url>
 
+  <!-- 许可证：MIT（2026-11-07 用户拍板；文本见仓库根的 LICENSE） -->
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <!-- SCM：发布到 Central 时元数据校验会查这一项（仓库地址是客观事实，先写死） -->
+  <scm>
+    <connection>scm:git:https://github.com/puras/mos4j.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/puras/mos4j.git</developerConnection>
+    <url>https://github.com/puras/mos4j</url>
+  </scm>
+
   <modules>
+    <!--
+      SDK 六个模块（2026-11-08 合并）：把原先十二个细粒度模块合并成六层。
+      合并的判据是「依赖方向」：下层不得知道上层，上层按需引用下层。
+      模块变粗不意味着边界变松——边界改由包前缀规则守护（BoundaryRulesTest 的包级门）。
+    -->
     <module>mos4j-core</module>
-    <module>mos4j-llm</module>
+    <module>mos4j-model</module>
+    <module>mos4j-runtime</module>
     <module>mos4j-tool</module>
     <module>mos4j-session</module>
-    <module>mos4j-driver</module>
-    <module>mos4j-execpath</module>
-    <module>mos4j-hook</module>
-    <module>mos4j-policy</module>
-    <module>mos4j-fs</module>
-    <module>mos4j-sandbox</module>
-    <module>mos4j-context</module>
-    <module>mos4j-sdk</module>
+    <module>mos4j-agent</module>
     <!-- mos4j-spring-boot-starter：按需（见 docs/mos4j-tasks.md §10），不进默认构建 -->
   </modules>
 
@@ -52,8 +67,14 @@
     <junit.version>5.11.4</junit.version>
 
     <!-- Spring Boot 版本（只供按需模块 mos4j-spring-boot-starter 使用；
-         SDK 十二模块不依赖 Spring——依赖纪律 I7） -->
+         SDK 六模块不依赖 Spring——依赖纪律 I7） -->
     <spring-boot.version>3.5.16</spring-boot.version>
+
+    <!-- 官方 MCP Java SDK 版本（mos4j-tool 用；optional，不传递给下游宿主）。
+         2.1.0 = 当前最新稳定版；2.2.0-M2 是里程碑版，不进默认路径。
+         协议层不手写（Go 参考实现同款决策：2026-07-28 规范废弃了 initialize/roots/sampling，
+         手写协议层要同时正确跑两代初始化流程）。 -->
+    <mcp.sdk.version>2.1.0</mcp.sdk.version>
 
     <!-- 构建插件版本 -->
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
@@ -62,6 +83,15 @@
     <!-- 3.7.0 / 3.8.1 的 ASM 不认 class file 69（JDK 25），analyze 会直接报错；
          3.9.0 是第一个能读 JDK 25 字节码的版本。 -->
     <maven.dependency.plugin.version>3.9.0</maven.dependency.plugin.version>
+
+    <!--
+      内部私服发布参数（2026-11-07 裁决：不发 Maven Central，改发内部私服）。
+      这些属性**故意不给默认值**：未显式传入时 deploy 会带着未解析的属性名失败（fail-closed），
+      而不是悄悄发到某个默认地址。仓库里不写死任何环境地址与账号。
+      用法见 docs/release.md §5。
+    -->
+    <mos4j.distribution.releaseRepoId>internal-releases</mos4j.distribution.releaseRepoId>
+    <mos4j.distribution.snapshotRepoId>internal-snapshots</mos4j.distribution.snapshotRepoId>
   </properties>
 
   <dependencyManagement>
@@ -114,6 +144,17 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+      <!-- 官方 MCP Java SDK（给 mos4j-tool 用；optional → 不传递给下游宿主） -->
+      <dependency>
+        <groupId>io.modelcontextprotocol.sdk</groupId>
+        <artifactId>mcp-core</artifactId>
+        <version>${mcp.sdk.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.modelcontextprotocol.sdk</groupId>
+        <artifactId>mcp-json-jackson3</artifactId>
+        <version>${mcp.sdk.version}</version>
+      </dependency>
       <!-- 模块间（compile 期互相可见，运行时同 groupId 合并发布） -->
       <dependency>
         <groupId>net.hegq</groupId>
@@ -122,7 +163,12 @@
       </dependency>
       <dependency>
         <groupId>net.hegq</groupId>
-        <artifactId>mos4j-llm</artifactId>
+        <artifactId>mos4j-model</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.hegq</groupId>
+        <artifactId>mos4j-runtime</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -132,32 +178,12 @@
       </dependency>
       <dependency>
         <groupId>net.hegq</groupId>
-        <artifactId>mos4j-fs</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>net.hegq</groupId>
-        <artifactId>mos4j-context</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>net.hegq</groupId>
-        <artifactId>mos4j-hook</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>net.hegq</groupId>
-        <artifactId>mos4j-driver</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>net.hegq</groupId>
         <artifactId>mos4j-session</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>net.hegq</groupId>
-        <artifactId>mos4j-sdk</artifactId>
+        <artifactId>mos4j-agent</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>
@@ -251,6 +277,109 @@
       <modules>
         <module>mos4j-spring-boot-starter</module>
       </modules>
+    </profile>
+
+    <!--
+      根工程**不再有** `-Pmcp` profile：MCP 客户端接入已并入 `mos4j-tool`（2026-11-08 合并），
+      在默认 reactor 里。官方 MCP SDK 在 mos4j-tool 里是 optional：不声明它的宿主不会被传递污染。
+      要跑 MCP 示例用 examples 侧的局部 profile：./mvnw -Pexamples,mcp verify
+    -->
+
+    <!--
+      示例集（默认不激活）：每个示例一个模块。
+      示例是给人读的装配说明书，不是交付本体——放进默认 reactor 会稀释
+      「一次依赖拿到能跑的智能体」这条承诺。
+      构建：./mvnw -Pexamples verify
+    -->
+    <profile>
+      <id>examples</id>
+      <modules>
+        <module>examples</module>
+      </modules>
+    </profile>
+
+    <!--
+      发布 profile（默认不激活）：源码附件 + javadoc 附件 + GPG 签名。
+      激活方式：./mvnw -Prelease -Pstarter deploy（示例与 examples,mcp 两套见 docs/release.md §5）
+
+      为什么单独放 profile：附件与签名只在发布时需要，
+      让它们进默认构建只会拖慢每一次本地构建（javadoc 生成尤其慢）。
+
+      为什么不在这里写「发布到 Central」的插件：Sonatype 的发布通道有两条
+      （旧的 OSSRH staging 与新的 Central Portal），两条的插件与仓库地址都不一样，
+      而本仓库**没有核实过当前该用哪条**——写一个没核实过的插件版本号，
+      只会让发布在最后一步失败。所以：附件与签名在这里配好，
+      发布通道在 docs/release.md §5 里按当时的官方文档填（见「还缺什么」表）。
+    -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals><goal>jar-no-fork</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.6.3</version>
+            <configuration>
+              <!-- 文档里的中文与 {@code @code} 片段多，doclint 的严格 HTML 检查会误报；
+                   发布前请人扫一眼生成的 javadoc。 -->
+              <doclint>none</doclint>
+              <charset>UTF-8</charset>
+              <docencoding>UTF-8</docencoding>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals><goal>jar</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.4</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <goals><goal>sign</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!--
+      内部私服发布（2026-11-07 裁决：先发内部私服，暂不发 Maven Central）。
+      与 `release` profile **正交**：release 管附件与签名，internal-publish 管上传地址。
+      两者要一起用：-Prelease,internal-publish deploy
+      地址与仓库 id 一律由命令行 -D 注入（见 docs/release.md §5），仓库里不写死环境信息。
+      未注入地址 → deploy 失败并报出未解析的属性名（fail-closed），不会误发。
+    -->
+    <profile>
+      <id>internal-publish</id>
+      <distributionManagement>
+        <repository>
+          <id>${mos4j.distribution.releaseRepoId}</id>
+          <url>${mos4j.distribution.releaseUrl}</url>
+        </repository>
+        <snapshotRepository>
+          <id>${mos4j.distribution.snapshotRepoId}</id>
+          <url>${mos4j.distribution.snapshotUrl}</url>
+        </snapshotRepository>
+      </distributionManagement>
     </profile>
   </profiles>
 </project>
