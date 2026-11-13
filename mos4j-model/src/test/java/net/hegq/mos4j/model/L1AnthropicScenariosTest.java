@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -286,6 +287,19 @@ class L1AnthropicScenariosTest {
                 .get("messages").get(0).get("content");
         assertEquals(1, blocks.size(), "audio 不发空壳块（只留文本块）");
         assertEquals("text", blocks.get(0).get("type").asText());
+    }
+
+    @Test
+    void a_capabilitiesHaveNoStructuredOutput() {
+        // 对齐 Go 的 llm/anthropic Chat.Capabilities：FC | Streaming | Multimodal。
+        // 关键点：**没有 STRUCTURED_OUTPUT**——Anthropic 协议没有 response_format，
+        // 声明了就是假的（宿主会据此发 responseFormat 然后被无声忽略）。
+        java.util.Set<Capability> caps = model.capabilities();
+        assertTrue(caps.contains(Capability.FUNCTION_CALLING));
+        assertTrue(caps.contains(Capability.STREAMING));
+        assertTrue(caps.contains(Capability.MULTIMODAL));
+        assertFalse(caps.contains(Capability.STRUCTURED_OUTPUT),
+                "Anthropic 无 response_format，不得声明 STRUCTURED_OUTPUT（对齐 Go）");
     }
 
     private static final ObjectMapper JSON = new ObjectMapper();

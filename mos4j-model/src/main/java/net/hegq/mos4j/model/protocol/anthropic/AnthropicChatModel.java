@@ -75,8 +75,13 @@ public final class AnthropicChatModel implements ChatModel {
 
     @Override
     public Set<Capability> capabilities() {
+        // 对齐 Go 的 llm/anthropic Chat.Capabilities：FC | Streaming | Multimodal。
+        // 不声明 STRUCTURED_OUTPUT：Anthropic 协议没有 response_format，声明了就是假的。
+        // REASONING 保留：Java 侧真的实现了（reasoningEffort → thinking.budget_tokens，
+        // 以及 thinking / thinking_delta 两个入站通道）——Go 不声明是 Go 侧的欠报，
+        // 不是我们多报（见 GO-DIFF.md #19）。
         return Set.of(Capability.FUNCTION_CALLING, Capability.STREAMING,
-                Capability.STRUCTURED_OUTPUT, Capability.MULTIMODAL, Capability.REASONING);
+                Capability.MULTIMODAL, Capability.REASONING);
     }
 
     // ---------------------------------------------------------------- 非流式
