@@ -20,7 +20,7 @@
 
 ## 签字指引（怎么签这份表）
 
-- 本表共 **112 条**判定项（I 7 + M 10 + R 10 + SI 52 + B 26 + G 7）。其中 **4 条已由用户裁决并落地**（B1 / B13 / B14 / B15，标 `☑`），**108 条待逐行签字**。
+- 本表共 **113 条**判定项（I 7 + M 10 + R 10 + SI 53 + B 26 + G 7）。其中 **4 条已由用户裁决并落地**（B1 / B13 / B14 / B15，标 `☑`），**109 条待逐行签字**。
 - **每条末尾都有勾选框，勾一个就行**（不勾 = 未评审）：
 
   | 节 | 条目 | 勾选框含义 |
@@ -28,8 +28,8 @@
   | §1 不变式 | I1–I7 | ☐ 通过　☐ 不通过　☐ 需讨论 |
   | §2 机制 | M1–M10 | ☐ 通过　☐ 不通过　☐ 需讨论 |
   | §3 三协议 | R1–R10 | ☐ 一致　☐ 有异议 |
-  | §4 自创机制 | SI-1…SI-51 | ☐ 接受　☐ 需改　☐ 需讨论 |
-  | §5 诚实边界 | B1–B25 | ☐ 接受　☐ 需补　☐ 需人做 |
+  | §4 自创机制 | SI-1…SI-53 | ☐ 接受　☐ 需改　☐ 需讨论 |
+  | §5 诚实边界 | B1–B26 | ☐ 接受　☐ 需补　☐ 需人做 |
   | §6 里程碑门 | G0–G6 | ☐ 通过　☐ 不通过　☐ 需讨论 |
 
 - 判「**不通过**」时**必须照抄被违反的那一句契约**（写在行内的横线上），否则该条不算评审过。
@@ -48,7 +48,7 @@
 > **Go 差异补齐补记（2026-11-08）**：13 项差异（#1…#13）**生产代码 + 定向用例全部落地**，文档登记完成
 > （[`GO-DIFF.md`](GO-DIFF.md) / [`API.md`](API.md) §3.15 / [`SELF-INVENTED.md`](SELF-INVENTED.md) SI-43…SI-51 /
 > [`INVARIANT-TESTS.md`](INVARIANT-TESTS.md) §3.9 / [`INVARIANT-TEST-MAP.md`](INVARIANT-TEST-MAP.md) F-14…F-23）；
-> 机械基线（六模块合并后，2026-11-08 实跑）：默认 **846 / 0 / 7**、含 starter **870 / 0 / 7**、`-Pexamples` **871 / 0 / 7**、`-Pexamples,mcp` **874 / 0 / 7**（示例自身 25 / 28 条）。
+> 机械基线（六模块合并 + 二次复核修复后，2026-11-08 实跑）：默认 **859 / 0 / 7**、含 starter **883 / 0 / 7**、`-Pexamples` **884 / 0 / 7**、`-Pexamples,mcp` **887 / 0 / 7**（示例自身 25 / 28 条）。
 
 ---
 
@@ -170,7 +170,7 @@
 
 ---
 
-## 4. Java 侧自创机制（`SELF-INVENTED.md` SI-1 … SI-52）
+## 4. Java 侧自创机制（`SELF-INVENTED.md` SI-1 … SI-53）
 
 > Go 侧没有对应物、Java 侧自创的机制**必须逐条评审**（PR 模板要求登记）。评审重点：**代价是否被诚实声明**。
 
@@ -228,6 +228,7 @@
 | SI-50 | 缓存键覆盖**完整请求上下文**（schema 键递归排序后哈希） | 只拿消息正文当键 → 工具清单 / 采样参数变了却命中旧缓存 = 返回错答案 | ✅ 建议接受（已落地：`CachingChatModel`；只缓存非流式成功、取消优先于命中、失败不缓存、命中共享同一 `Response` 对象、`ttl<=0` 不过期；与**服务端 prompt cache 不是一回事**；守护：`CachingChatModelTest` 10 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-51 | 示例集**独立模块 + 独立 profile**（不进默认 reactor）+ testkit 替身 | 示例需要真 API Key（CI 跑不了）；放进默认 reactor 会稀释「一次依赖拿到能跑的智能体」的承诺 | ✅ 建议接受（已落地：`examples/` 7 个示例 + `testkit`（仅 test scope）；依赖逐模块显式声明；用例不碰网络；守护：examples 28 条 + `StubModelTest` 5 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-52 | **官方 MCP SDK 的 SLF4J 例外改挂在 `mos4j-tool`**（原属 `mos4j-mcp`）：MCP 与工具族合并后，窄 enforcer 覆盖跟着搬家，但**范围不变**（只放行 `org.slf4j*`；Spring / Guava / ORM / Lombok / Logback 仍禁） | 例外不搬 → MCP 编译不过（`NoClassDefFoundError`）；例外整条关掉 → 依赖纪律名存实亡 | ✅ 建议接受（官方 SDK 在 `mos4j-tool` 里是 **optional**，不传递给下游宿主；父 POM 禁列本身未改；守护：`dependency:analyze` 无告警 + C6 扫描）｜☐接受 ☐需改 ☐需讨论 |
+| SI-53 | **未知内容块类型 fail-fast**（不发空壳块、不静默兜底）：Go 三协议的 `default` 分支把未知块当 `text`（Gemini 直接跳过） | 把未知块（如 `video`）当文本发 = 把空字符串送上去：**模型看到的请求与宿主想的不一样，且两端都没错误线索**；修复前 `file` 块出站只是 `{"type":"file"}`，url / data 全丢 | ✅ 建议接受（已落地：`type` 超出 `text`/`image`/`audio`/`file` → 抛 `IllegalArgumentException`；Anthropic 的 `audio` **静默跳过**（与 Go 一致：无对应块类型），但同样不发空壳；代价：Go 侧带未知块的日志搬到 Java 回放会直接报错｜守护：`OpenAiChatModelTest.unknownPartTypeFailsFast`、`L1GeminiScenariosTest.g_unknownPartTypeFailsFast`）｜☐接受 ☐需改 ☐需讨论 |
 
 ---
 
@@ -300,7 +301,7 @@
 |---|---|
 | 评审人 | ____________________ |
 | 日期 | ____________________ |
-| 评审范围 | ☐ 全表 112 条　☐ 部分（未评审条目列在 §7.3） |
+| 评审范围 | ☐ 全表 113 条　☐ 部分（未评审条目列在 §7.3） |
 | 结论 | ☐ 全部通过　☐ 有不通过项（列出：____________）　☐ 需维护者拍板（列出：____________） |
 | 遗留处理 | ☐ 接受现有边界　☐ 列入下一里程碑　☐ 需授权（Go 仓库只读 / 其他） |
 | 未评审条目 | （若不是全表评审，在这里逐条列出编号：____________） |
@@ -319,20 +320,20 @@
 | 项 | 结果 |
 |---|---|
 | 引用存在性（脚本核对） | 本表内 **41 条 `XxxTest.方法` 引用全部存在**（去重 37 条；脚本按源码里的方法签名逐条比对；另有 `*.java` 是文件名引用、`ToolCall.args` 是字段引用，均非方法引用）；**【代码】块里的仓库内路径全部存在**（按「仓库根相对」与「`docs/contract/` 相对」两种基准解析；`mos4j-xxx/.../Xxx.java` 是省略写法，按末段文件名在仓库内定位；Go 参考侧路径 `llm/...`、`sandbox/...` 不在本仓库，不参与该检查） |
-| 测试计数复核 | 表内写的计数与实际 `@Test` 数一致：`ObserveGateTest` 11 / `SandboxedFsTest` 18 / `RootSetTest` 13 / `CompactionBudgetTest` 7 / `CompactionCutPointTest` 3 / `PreviousSummaryTest` 3 / `ContextFlowTest` 8 / `UsageJsonTest` 4 / `ShellToolTest` 8 / `LocalRunnerTest` 14 / `ExecPathSecurityTest` 25 / `SecurityFlowTest` 8 / `GuardBusTest` 7 / `BoundaryRulesTest` 7 / `FileToolsTest` 30 / `ExecPathTest` 15 / `L1OpenAiScenariosTest` 5 / `L1AnthropicScenariosTest` 12 / `L1GeminiScenariosTest` 6；`@Disabled` = 0（三协议语料 `@Disabled` 已归零） |
-| 机械门（2026-11-08，**六模块合并 + Go 差异 13 项补齐后**） | 默认 reactor **846 通过 / 0 失败 / 7 跳过**（6 个测模块，106 个测试类）；`-Pstarter` **870 / 0 / 7**（7 个测模块）；`-Pexamples` **871 / 0 / 7**（8 个示例模块，示例自身 25 条）；`-Pexamples,mcp` **874 / 0 / 7**（示例自身 28 条）；6 个 SDK 模块 + starter + 8 个示例模块 `dependency:analyze` 无告警；C6（`src/main` + `src/test`）spring=0、regex=0；裸 NUL=0；文档相对链接 0 断链；字段清单两份副本逐字节一致（`aeb48e08…`）。日志：`.j7log2/final-default.log`、`.j7log2/final-starter.log`、`.j7log2/final-examples.log`、`.j7log2/final-examples-mcp.log`（`.j7log2/` 为本地临时目录，已移出 Git 索引并加入 `.gitignore`，不属交付物） |
+| 测试计数复核 | 表内写的计数与实际 `@Test` 数一致：`ObserveGateTest` 11 / `SandboxedFsTest` 18 / `RootSetTest` 13 / `CompactionBudgetTest` 7 / `CompactionCutPointTest` 3 / `PreviousSummaryTest` 3 / `ContextFlowTest` 8 / `UsageJsonTest` 4 / `ShellToolTest` 8 / `LocalRunnerTest` 14 / `ExecPathSecurityTest` 25 / `SecurityFlowTest` 8 / `GuardBusTest` 7 / `BoundaryRulesTest` 7 / `FileToolsTest` 30 / `ExecPathTest` 15 / `L1OpenAiScenariosTest` 5 / `L1AnthropicScenariosTest` **14** / `L1GeminiScenariosTest` **10** / `OpenAiChatModelTest` **16**；`@Disabled` = 0（三协议语料 `@Disabled` 已归零） |
+| 机械门（2026-11-08，**六模块合并 + Go 差异 13 项补齐 + 二次复核修复后**） | 默认 reactor **859 通过 / 0 失败 / 7 跳过**（6 个测模块，106 个测试类）；`-Pstarter` **883 / 0 / 7**（7 个测模块）；`-Pexamples` **884 / 0 / 7**（8 个示例模块，示例自身 25 条）；`-Pexamples,mcp` **887 / 0 / 7**（示例自身 28 条）；6 个 SDK 模块 + starter + 8 个示例模块 `dependency:analyze` 无告警；C6（`src/main` + `src/test`）spring=0、regex=0；裸 NUL=0；文档相对链接 0 断链；字段清单两份副本逐字节一致（`aeb48e08…`）。日志：`.j7log2/final3-default.log`、`.j7log2/final3-starter.log`、`.j7log2/final3-examples.log`、`.j7log2/final3-examples_mcp.log`（`.j7log2/` 为本地临时目录，已移出 Git 索引并加入 `.gitignore`，不属交付物） |
 | 本轮新增的守护用例 | 上一批（Q1/Q2′/Q4/Q5）：`PathScopeRuntimeTest` 11 / `Mos4jTest` 14 / `Mos4jProtocolKnobsTest` 5 / `DynamicPathScopeTest` 2 / `ReActDriverTest` 8 / starter `Mos4jStarterKnobsTest` 5；**能力缺口收口批**：`PolicyVisibilityTest` 7 / `ChatModelDecoratorsTest` 11 / `ModelCatalogTest` 9 / `AgentCloseTest` 4 / `McpAuthTest` 5 / `McpResourceToolsTest` 8 / `McpPolicyIntegrationTest` 3 / `McpKitWiringTest` 4 / `ToolContractTest` 的 MCP 资源工具冻结断言 1；**能力缺口收尾批（2026-11-07）**：`McpDeferredVisibilityTest` 2 / `McpResultProjectionTest` 9 / `McpHttpServerE2ETest` 3 / `MainTest.skillsDir_isWiredIntoTheSession` 1 / `SkillCatalogConcurrencyTest` 1；**Go 差异补齐批（2026-11-07，#5/#7/#9）**：`ContextFilesTest` 16 / `RootSetTest` 13 / `RootManagementTest` 3 / `DynamicPathScopeTest` 3 / `Mos4jTest` 19 / starter `Mos4jAutoConfigurationTest` 18；**Go 差异 13 项补齐批（2026-11-08）**：`SubAgentCatalogTest` 12 / `SubAgentToolsTest` 12 / `SubAgentToolTest` 11 / `SubAgentFlowTest` 7 / `ResumeTest` 9 / `SessionApprovalPriorTest` 9 / `ApprovalPriorTest` 6 / `SessionDerivationTest` 8 / `ModelRegistryTest` 8 / `PromptBuilderTest` 6 / `CancellationTokenCauseTest` 8 / `RuntimeKnobsTest` 5 / `CachingChatModelTest` 10 / examples 28 + `StubModelTest` 5 |
 | Go 侧实读 | **J8 批次期间完成，本轮未重读**（结论沿用）：`sandbox/seatbelt_darwin.go`（profile 形态与转义）、`sandbox/pathscope.go`（`deriveScope` / `effectiveScope` / `validateScope` / `writeOpen`）、`sandbox/seatbelt_darwin_test.go`（3 条用例，已对位为 Java 用例）、`sandbox/scope_dynamic_darwin_test.go`（动态 scope，→ Q2 缺口）、`llm/model.go`、`llm/gemini/gemini.go`（`require_finish` 逃生阀） |
 | 本轮**没有**复核的 | Go 侧**除上述文件外**的源码未重新逐行读（沿用 J2–J7 已完成的对拍结论与冻结语料）；「语义是否与 Go 一致」的最终判断仍属人工范畴 |
 | 待人拍板 | **已拍板（2026-11-07，用户「全部接受建议」）**：Q1–Q8 全部按建议实施，详见 [`REVIEW-QUESTIONS.md`](REVIEW-QUESTIONS.md) 每条的「裁决与实施」栏。**剩余的人工动作**：本表的逐行签字（§7.2 签署栏）。 |
-| 评审表覆盖核对（2026-11-08） | §1 `I1–I7`（7）+ §2 `M1–M10`（10）+ §3 `R1–R10`（10）+ §4 `SI-1…SI-52`（52）+ §5 `B1–B26`（26）+ §6 `G0–G6`（7）= **112 条判定项**；已裁决 4 条（B1 / B13 / B14 / B15）→ **108 条待签**。**本轮修掉的真实缺口**：§4 此前只列到 SI-31，漏了 J8/Q 批次新增的 **SI-32（装配期探测）与 SI-33（显式出口与关闭原因自述）**；能力缺口收口批补入 **SI-34（policy 单一状态源）/ SI-35（`DescribeContributor` 槽）/ SI-36（`Agent.close()` 容错语义）**；收尾批补入 **SI-37（MCP 结果投影按类型占位）/ SI-38（CLI `--skills` 参数面）**；Go 差异补齐批（2026-11-07）补入 **SI-39…SI-42**；**Go 差异 13 项补齐批（2026-11-08）补入 SI-43…SI-51（9 条）**；**六模块合并批（2026-11-08）补入 SI-52（官方 MCP SDK 的 SLF4J 例外改挂在 `mos4j-tool`）**；§5 补入 **B19（Go 差异清单）/ B20（#5/#7/#9 的四条有意差异）**，并把 **B21（取消原因）/ B22（运行期可调参数）/ B23（`llm.WithCache`）** 从「backlog」改写为「已补齐」，新增 **B24（9 条新有意差异）/ B25（机器测试 ≠ 跨语言回放）**；**六模块合并批（2026-11-08）新增 B26（模块合并后依赖方向由 Maven 图降为包前缀门）**。**Go 差异逐行复核**：见 [`GO-DIFF.md`](GO-DIFF.md)（13 项已全部落地；Go 原测试名逐字对位见 [`INVARIANT-TESTS.md`](INVARIANT-TESTS.md) §3.9） |
+| 评审表覆盖核对（2026-11-08） | §1 `I1–I7`（7）+ §2 `M1–M10`（10）+ §3 `R1–R10`（10）+ §4 `SI-1…SI-53`（53）+ §5 `B1–B26`（26）+ §6 `G0–G6`（7）= **113 条判定项**；已裁决 4 条（B1 / B13 / B14 / B15）→ **109 条待签**。**本轮修掉的真实缺口**：§4 此前只列到 SI-31，漏了 J8/Q 批次新增的 **SI-32（装配期探测）与 SI-33（显式出口与关闭原因自述）**；能力缺口收口批补入 **SI-34（policy 单一状态源）/ SI-35（`DescribeContributor` 槽）/ SI-36（`Agent.close()` 容错语义）**；收尾批补入 **SI-37（MCP 结果投影按类型占位）/ SI-38（CLI `--skills` 参数面）**；Go 差异补齐批（2026-11-07）补入 **SI-39…SI-42**；**Go 差异 13 项补齐批（2026-11-08）补入 SI-43…SI-51（9 条）**；**六模块合并批（2026-11-08）补入 SI-52（官方 MCP SDK 的 SLF4J 例外改挂在 `mos4j-tool`）**；§5 补入 **B19（Go 差异清单）/ B20（#5/#7/#9 的四条有意差异）**，并把 **B21（取消原因）/ B22（运行期可调参数）/ B23（`llm.WithCache`）** 从「backlog」改写为「已补齐」，新增 **B24（9 条新有意差异）/ B25（机器测试 ≠ 跨语言回放）**；**六模块合并批（2026-11-08）新增 B26（模块合并后依赖方向由 Maven 图降为包前缀门）**。**Go 差异逐行复核**：见 [`GO-DIFF.md`](GO-DIFF.md)（13 项已全部落地；Go 原测试名逐字对位见 [`INVARIANT-TESTS.md`](INVARIANT-TESTS.md) §3.9） |
 
 ---
 
 ## 附：评审前建议跑一遍的命令
 
 ```bash
-# 全量构建 + 全部测试（默认 reactor 基线 846 通过 / 7 跳过；含按需 starter 为 870/7，含按需 examples 为 871/7，含 examples+mcp 为 874/7）
+# 全量构建 + 全部测试（默认 reactor 基线 859 通过 / 7 跳过；含按需 starter 为 883/7，含按需 examples 为 884/7，含 examples+mcp 为 887/7）
 MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B clean verify
 MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -Pstarter clean verify
 MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -Pexamples clean verify

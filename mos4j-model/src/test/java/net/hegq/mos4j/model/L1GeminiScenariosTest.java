@@ -7,6 +7,8 @@ import net.hegq.mos4j.model.support.FakeModelServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -150,4 +152,105 @@ class L1GeminiScenariosTest {
                 "非流式走 generateContent，路径带模型名: " + path);
         assertEquals("test-key", server.lastHeader("x-goog-api-key"), "Gemini 用 x-goog-api-key 鉴权");
     }
+
+    @Test
+    void g_multimodal_audioDataMapsToInlineData() throws IOException {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "audio", null, null, "QUJD", "audio/wav")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode part = JSON.readTree(server.lastRequestBody())
+                .get("contents").get(0).get("parts").get(0);
+        assertEquals("audio/wav", part.get("inlineData").get("mimeType").asText(),
+                "audio base64 走 inlineData（对齐 Go geminiParts）");
+        assertEquals("QUJD", part.get("inlineData").get("data").asText());
+    }
+
+    @Test
+    void g_multimodal_audioUrlMapsToFileData() throws IOException {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "audio", null, "https://x/a.wav", null, "audio/wav")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode part = JSON.readTree(server.lastRequestBody())
+                .get("contents").get(0).get("parts").get(0);
+        assertEquals("https://x/a.wav", part.get("fileData").get("fileUri").asText(),
+                "远程音频走 fileData（对齐 Go）");
+        assertEquals("audio/wav", part.get("fileData").get("mimeType").asText());
+    }
+
+    @Test
+    void g_multimodal_fileDataKeepsMimeAsIsWhileInlineDataDefaults() throws IOException {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        // 无 MIME：有 URL 的 image 走 fileData（MIME 原样 → 空串），无 URL 的走 inlineData（缺省 image/png）
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                        "image", null, "https://x/a.png", null, null),
+                                new net.hegq.mos4j.model.ContentPart(
+                                        "image", null, null, "QUJD", null)),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode parts = JSON.readTree(server.lastRequestBody())
+                .get("contents").get(0).get("parts");
+        // Go: FileData{MIMEType: p.MIME} 原样；InlineData{MIMEType: mimeOr(p.MIME, "image/png")}
+        assertEquals("", parts.get(0).get("fileData").get("mimeType").asText(),
+                "fileData 分支 MIME 原样（Go 不补缺省）");
+        assertEquals("image/png", parts.get(1).get("inlineData").get("mimeType").asText(),
+                "inlineData 分支 MIME 缺省 image/png（Go mimeOr）");
+    }
+
+    @Test
+    void g_multimodal_fileMapsToFileData() throws IOException {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "file", null, "https://x/a.pdf", null, "application/pdf")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode part = JSON.readTree(server.lastRequestBody())
+                .get("contents").get(0).get("parts").get(0);
+        assertEquals("application/pdf", part.get("fileData").get("mimeType").asText(),
+                "Gemini 侧 file 只有 fileData 一种形状（对齐 Go）");
+        assertEquals("https://x/a.pdf", part.get("fileData").get("fileUri").asText());
+    }
+
+    @Test
+    void g_unknownPartTypeFailsFast() {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        // 旧实现静默丢弃未知类型：宿主以为发了，实际没发
+        assertThrows(IllegalArgumentException.class, () -> model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart("video", null, null, null, null)),
+                        null, null, null, null)),
+                null, null, null, null, null, null)));
+    }
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 }

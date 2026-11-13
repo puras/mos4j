@@ -39,14 +39,22 @@ public final class OpenAiDtos {
     public record StreamOptions(@JsonProperty("include_usage") Boolean includeUsage) {
     }
 
-    /** 消息参数（content 可为字符串或内容块数组）。 */
+    /**
+     * 消息参数（content 可为字符串或内容块数组）。
+     *
+     * <p><b>{@code reasoning_content} 是请求侧字段</b>（DeepSeek / Qwen 等 thinking 模式的扩展）：
+     * 多轮对话里 assistant 的思维链必须原样回传，否则服务端 400。Go 参考实现因为生成的请求结构体
+     * 没有该字段，只能「序列化后做字节级注入」（{@code injectReasoningContent}）；Java 的请求 DTO
+     * 是自己写的，直接多一个字段就能得到同样的报文。</p>
+     */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record MessageParam(
             @JsonProperty("role") String role,
             @JsonProperty("content") Object content,
             @JsonProperty("tool_calls") List<ToolCallParam> toolCalls,
             @JsonProperty("tool_call_id") String toolCallId,
-            @JsonProperty("name") String name) {
+            @JsonProperty("name") String name,
+            @JsonProperty("reasoning_content") String reasoningContent) {
     }
 
     /** 消息里的工具调用。 */

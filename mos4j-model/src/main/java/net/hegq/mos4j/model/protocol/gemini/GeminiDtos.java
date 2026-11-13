@@ -32,35 +32,50 @@ final class GeminiDtos {
     record Content(String role, List<Part> parts) {
     }
 
-    /** part（开放形状：text / functionCall / inlineData / functionData…）。 */
+    /** part（开放形状：text / functionCall / inlineData / fileData / functionResponse…）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Part(String text, FunctionCall functionCall, InlineData inlineData,
-            FunctionResponse functionResponse) {
+            FileData fileData, FunctionResponse functionResponse) {
 
         /** 文本 part 工厂。 */
         public static Part ofText(String text) {
-            return new Part(text, null, null, null);
+            return new Part(text, null, null, null, null);
         }
 
-        /** 图片 part 工厂（inlineData base64）。 */
+        /** 图片 / 音频 part 工厂（inlineData base64）。 */
         public static Part ofImage(String mimeType, String base64Data) {
-            return new Part(null, null, new InlineData(mimeType, base64Data), null);
+            return new Part(null, null, new InlineData(mimeType, base64Data), null, null);
+        }
+
+        /**
+         * 远程媒体 part 工厂（{@code fileData}）。
+         *
+         * <p>用于 image / audio 的远程地址，以及 file 类型（Gemini 侧 file 只有 fileData 一种落地形状，
+         * 对齐 Go {@code geminiParts}）。</p>
+         */
+        public static Part ofFileData(String mimeType, String fileUri) {
+            return new Part(null, null, null, new FileData(mimeType, fileUri), null);
         }
 
         /** 工具调用 part 工厂。 */
         public static Part ofFunctionCall(FunctionCall call) {
-            return new Part(null, call, null, null);
+            return new Part(null, call, null, null, null);
         }
 
         /** 工具回执 part 工厂。 */
         public static Part ofFunctionResponse(String name, Map<String, Object> response) {
-            return new Part(null, null, null, new FunctionResponse(name, response));
+            return new Part(null, null, null, null, new FunctionResponse(name, response));
         }
     }
 
     /** inlineData（base64 媒体）。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     record InlineData(String mimeType, String data) {
+    }
+
+    /** fileData（远程媒体地址；file 类型在 Gemini 侧的唯一形状）。 */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record FileData(String mimeType, String fileUri) {
     }
 
     /** functionResponse（工具回执；response 是对象）。 */

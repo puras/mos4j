@@ -46,7 +46,9 @@ import java.util.TreeMap;
  *       参数原文拼接，<b>不解析</b>（载荷冻结）。</li>
  *   <li>流完整性：<b>{@code [DONE]} 或 {@code finish_reason} 任一到即完整</b>；
  *       两者皆无才是截断（机制 M5）。</li>
- *   <li>推理内容：{@code reasoning_content} 优先，{@code reasoning} 兜底。</li>
+ *   <li>推理内容：响应侧 {@code reasoning_content} 优先，{@code reasoning} 兜底；
+ *       <b>请求侧只对 assistant 消息回传非空的 {@code reasoning_content}</b>（DeepSeek / Qwen 等
+ *       thinking 模式的多轮对话必须原样带回，否则服务端 400）。</li>
  *   <li>空响应（无 choices）是瞬时故障，抛 {@link EmptyResponseException} 让重试层认出。</li>
  * </ul>
  */
@@ -54,6 +56,9 @@ public final class OpenAiChatModel implements ChatModel {
 
     /** 提供方标识（错误文本前缀）。 */
     public static final String PROVIDER = "openai";
+
+    /** 未知 MIME 时的音频格式（对齐 Go {@code audioFormat} 的 default 分支）。 */
+    private static final String DEFAULT_AUDIO_FORMAT = "mp3";
 
     private final OpenAiConfig config;
     private final HttpTransport transport;
@@ -232,7 +237,23 @@ public final class OpenAiChatModel implements ChatModel {
                 toContentValue(message),
                 toolCalls,
                 message.toolCallId(),
-                message.name());
+                message.name(),
+                reasoningContentOf(message));
+    }
+
+    /**
+     * 请求侧思维链：<b>只对 assistant 消息、且内容非空时</b>回传（对齐 Go 的 {@code injectReasoningContent}）。
+     *
+     * <p><b>不注入为什么是 bug</b>：DeepSeek-R1 / Qwen thinking 模式的服务端要求把上一轮的
+     * {@code reasoning_content} 原样带回来，带上不了就 400——不是「少了一个可选字段」，是第二轮直接不能用。
+     * 因此这里不做协议嗅探，只要非空就带（Go 同样不做嗅探）。</p>
+     */
+    private static String reasoningContentOf(Message message) {
+        if (message.role() != Role.ASSISTANT) {
+            return null;
+        }
+        String reasoning = message.reasoningContent();
+        return reasoning == null || reasoning.isEmpty() ? null : reasoning;
     }
 
     /** 内容映射：多模态展开成 content 数组，否则用字符串。 */
@@ -245,18 +266,40 @@ public final class OpenAiChatModel implements ChatModel {
         for (ContentPart part : parts) {
             switch (part.type() == null ? "" : part.type()) {
                 case "text" -> array.add(Map.of("type", "text", "text", part.text() == null ? "" : part.text()));
-                case "image" -> {
-                    Map<String, Object> url = new LinkedHashMap<>();
-                    url.put("url", part.url() != null ? part.url()
-                            : "data:" + (part.mimeType() == null ? "" : part.mimeType()) + ";base64,"
-                            + (part.data() == null ? "" : part.data()));
-                    array.add(Map.of("type", "image_url", "image_url", url));
-                }
+                case "image" -> array.add(imagePart(part));
                 case "audio" -> array.add(audioPart(part));
-                default -> array.add(Map.of("type", part.type()));
+                case "file" -> array.add(imagePart(part));
+                default -> throw new IllegalArgumentException(
+                        "openai: 不支持的内容块类型: " + part.type());
             }
         }
         return array;
+    }
+
+    /**
+     * 图片块（OpenAI {@code image_url}）。
+     *
+     * <p>OpenAI 兼容协议没有独立的「文件」块类型，Go 参考实现（{@code toOpenAIContent}）对
+     * {@code file} 也走 {@code image_url}；这里保持同一语义，由 {@link #mediaUrl} 决定 URL 还是 data URL。</p>
+     */
+    private static Map<String, Object> imagePart(ContentPart part) {
+        Map<String, Object> image = new LinkedHashMap<>();
+        image.put("url", mediaUrl(part));
+        return Map.of("type", "image_url", "image_url", image);
+    }
+
+    /**
+     * 媒体地址：<b>远程 URL 优先</b>，否则把 base64 包成 data URL（对齐 Go 的 {@code mediaURL}）。
+     *
+     * <p>MIME 缺省 {@code image/png}（Go 同口径）；带参数的 MIME（{@code image/png; charset=…}）
+     * 原样保留——data URL 的元数据部分本来就允许带参数。</p>
+     */
+    private static String mediaUrl(ContentPart part) {
+        if (part.url() != null && !part.url().isEmpty()) {
+            return part.url();
+        }
+        String mime = part.mimeType() == null || part.mimeType().isEmpty() ? "image/png" : part.mimeType();
+        return "data:" + mime + ";base64," + (part.data() == null ? "" : part.data());
     }
 
     /**
@@ -276,17 +319,24 @@ public final class OpenAiChatModel implements ChatModel {
         return Map.of("type", "input_audio", "input_audio", audio);
     }
 
-    /** 从 MIME 类型推音频格式（{@code audio/wav} → {@code wav}）。 */
+    /** 从 MIME 类型推音频格式（{@code audio/mpeg} → {@code mp3}），未知按 {@code mp3}。 */
     private static String audioFormat(String mimeType) {
-        if (mimeType == null || !mimeType.contains("/")) {
-            return "wav";
+        if (mimeType == null) {
+            return DEFAULT_AUDIO_FORMAT;
         }
-        String subtype = mimeType.substring(mimeType.indexOf('/') + 1);
-        int semi = subtype.indexOf(';');
+        // 去掉参数（audio/wav; codecs=1）再映射
+        String mime = mimeType;
+        int semi = mime.indexOf(';');
         if (semi >= 0) {
-            subtype = subtype.substring(0, semi);
+            mime = mime.substring(0, semi).trim();
         }
-        return subtype.isEmpty() ? "wav" : subtype;
+        return switch (mime) {
+            case "audio/mpeg", "audio/mp3" -> "mp3";
+            case "audio/wav", "audio/x-wav" -> "wav";
+            case "audio/ogg" -> "ogg";
+            case "audio/aac" -> "aac";
+            default -> DEFAULT_AUDIO_FORMAT;
+        };
     }
 
     private Map<String, Object> toResponseFormat(Request.ResponseFormat format) {

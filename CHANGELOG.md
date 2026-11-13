@@ -99,10 +99,37 @@
 - macOS Seatbelt 的**强制效果**未在真机验收（本机 `sandbox_apply: Operation not permitted`）——验收包见 `tools/seatbelt-acceptance/`。
 - Linux / Windows 后端未验证 / 未实现。
 - 技能 `allowed-tools` 只诊断不生效（不造第二套安全真相）。
-- 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（112 条判定项，**108 条待签**）。
+- 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（113 条判定项，**109 条待签**）。
 - 相对 Go 参考实现的 **13 项能力缺口已全部补齐**（2026-11-08）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
 
 ### 机械门基线
 
-- 默认 reactor **846 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，106 个测试类）；`-Pstarter` **870 / 7**；`-Pexamples` **871 / 7**（示例自身 25 条）；`-Pexamples,mcp` **874 / 7**（示例自身 28 条）。
+- 默认 reactor **859 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，106 个测试类）；`-Pstarter` **883 / 7**；`-Pexamples` **884 / 7**（示例自身 25 条）；`-Pexamples,mcp` **887 / 7**（示例自身 28 条）。
 - 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
+
+---
+
+## 未发布 —— 二次复核修复（2026-11-08）
+
+> 触发问题：「除了验证，其他都 OK 了么」——逐项核对时用**出站报文抓包**发现的真缺口。
+> 两者都不是文档问题，而是「声明了但没做到」：一个会让真实服务商多轮调用直接 400，一个让宿主以为发了的多模态内容静默消失。
+
+### `mos4j-model`：**请求侧 `reasoning_content` 回传**（对齐 Go `injectReasoningContent`）
+
+- DeepSeek / Qwen 等 thinking 模式要求把上一轮的思维链原样回传，不回传不是「少一个可选字段」而是**第二轮直接 400**。
+- 修复：公开 `Message.reasoningContent` 本来就存着值，但出站报文里从来没有它（`MessageParam` 没这个字段）。现在 `MessageParam` 新增 `reasoning_content`，只对 **role=assistant 且非空**赋值；Go 因为生成的请求结构体没这个字段只能序列化后做字节注入，Java 的请求 DTO 是自己写的，多一个字段即得同样报文。
+- **只改 OpenAI 兼容协议**：Anthropic 侧 Go 也不回传 thinking 块，不算缺口。
+- 守护：`OpenAiChatModelTest.reasoningContent_isEchoedOnAssistantMessages` / `reasoningContent_absentWhenEmptyOrNonAssistant`。
+
+### `mos4j-model`：**`ContentPart` 的 `audio` / `file` 三协议真实现**（对齐 Go `toOpenAIContent` / `anthropicContent` / `geminiParts`）
+
+- 修复前：`file` 块出站是 `{"type":"file"}`（url / data 全丢）；Gemini 的 `audio` / `file` 直接丢掉——宿主以为发了，其实没发。
+- **OpenAI**：`image` / `file` 都走 `image_url`（URL 优先，否则 `data:\u003cmime\u003e;base64,\u003cdata\u003e`，mime 缺省 `image/png`）；`audio` 走 `input_audio`，格式映射改成 Go 的口径（`audio/mpeg`→`mp3` 等，未知→`mp3`）。
+- **Anthropic**：`file` → `document` 块（base64，`media_type` 原样用宿主给的 MIME，**不**补 `image/png`）；`audio` **不发块**（Go 也忽略，Anthropic 无对应块类型）。
+- **Gemini**：`Part` 新增 `fileData`（含 `FileData` record）；`image` / `audio` 有 URL 走 `fileData` 否则 `inlineData`；`file` 只走 `fileData`。
+- 守护：OpenAI 4 条 + Anthropic 2 条 + Gemini 4 条（全部断言出站报文）。
+
+### 新的有意差异与登记
+
+- **SI-53（新增）**：未知内容块类型 **fail-fast**（`IllegalArgumentException`），而不是 Go 的「当 `text` 兜底」。理由：把未知块当文本发 = 把空字符串送上去，模型看到的请求与宿主想的不一样且两端无错误线索。
+- [`docs/contract/GO-DIFF.md`](docs/contract/GO-DIFF.md) 新增 #15 / #16 两条（均为「声明了但没做到」的真缺口，已修复）；`SELF-INVENTED.md` 新增 SI-53；评审表 113 条判定项 / **109 条待签**。

@@ -49,8 +49,8 @@ MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -am \
 # 4) 冻结清单：80 条 / 71 名 / 名字集合摘要 3d35911d…（由 FieldNameContractTest 守）
 ```
 
-**当前基线**（2026-11-08 六模块合并后实跑）：默认 reactor **846 通过 / 0 失败 / 0 错误 / 7 跳过**；
-`-Pstarter` **870 / 7**；`-Pexamples` **871 / 7**；`-Pexamples,mcp` **874 / 7**。
+**当前基线**（2026-11-08 二次复核修复后实跑）：默认 reactor **859 通过 / 0 失败 / 0 错误 / 7 跳过**；
+`-Pstarter` **883 / 7**；`-Pexamples` **884 / 7**；`-Pexamples,mcp` **887 / 7**。
 （MCP 接入已并入 `mos4j-tool`，进入默认 reactor；examples 自身分别为 25 与 28 条。）
 
 ## 4. 还缺什么（发布配置的缺口，需要人拍板）
@@ -63,7 +63,7 @@ MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -am \
 | SCM 元数据 | ✅ **已补**（`<scm>`：git + ssh + 网页地址） | — | — |
 | 源码 / javadoc 附件 | ✅ **已配**（`release` profile：`maven-source-plugin` 3.3.1 + `maven-javadoc-plugin` 3.6.3，`doclint=none`） | 发布前人扫一眼生成的 javadoc | — |
 | GPG 签名 | ✅ **已配**（`release` profile：`maven-gpg-plugin` 3.2.4），但**需要本机有 gpg 与密钥** | 密钥**不入库**（环境属人）；私服不校验签名时可 `-Dgpg.skip=true` | 需人提供密钥（或决定跳过） |
-| 人工评审签字 | `REVIEW-SHEET.md` 仍有 **86 条待签** | 评审人逐行勾 | **必须是人做** |
+| 人工评审签字 | `REVIEW-SHEET.md` 仍有 **109 条待签** | 评审人逐行勾 | **必须是人做** |
 | Seatbelt 强制效果真机验收 | 本机 `sandbox_apply: Operation not permitted`（7 条跳过里含它） | 在允许 `sandbox-exec` 的 macOS 上跑 `tools/seatbelt-acceptance/` | **必须是人做（换环境）** |
 
 > 上面「需人提供」的（密钥 / 账号 / 私服地址）**不写死在仓库里**：凭证属环境，属人，不属代码。

@@ -416,6 +416,30 @@ Go 的一步式反而不能显式激活没搜到的工具。
 
 > **口径差**：Go 的示例靠真模型跑（需要 API Key），Java 的示例用例改用**脚本化替身**（`examples/testkit` 的 `StubModel`）→ 可进 CI；登记为 SI-51。
 
+### 3.10 多模态内容块与 thinking 回传的原测试名对位（#15 / #16，2026-11-08 二次复核）
+
+> 本批与其他批的区别：**问题不是靠读 Go 测试名发现的，而是靠拓出站报文抓包发现的**。
+> 回头对位时 Go 侧确实有直接单测（`llm/openai/convert_test.go` 等），下表逐条抄录。
+
+| 项 | Go 侧原测试名（逐字抄录） | Go 行为 | Java 对应用例 |
+|---|---|---|---|
+| `reasoning_content` 出站回传 | `llm/openai/openai_test.go` 的 `TestChatReasoningContentRoundTrip` | 历史里的 assistant 消息带 `ReasoningContent` 时，请求体必须包含 `"reasoning_content":"…"`；响应侧同样解析 | `OpenAiChatModelTest.reasoningContent_isEchoedOnAssistantMessages`、`reasoningContent_absentWhenEmptyOrNonAssistant` |
+| OpenAI 的 `mediaURL` 口径 | `llm/openai/convert_test.go` 的 `TestMediaURL` | URL 优先，否则 `data:\u003cmime\u003e;base64,\u003cdata\u003e`，mime 缺省 `image/png` | `OpenAiChatModelTest.multimodal_filePrefersRemoteUrl`、`multimodal_fileMapsToImageUrlWithDataUrl` |
+| OpenAI 的 `audioFormat` 口径 | `llm/openai/convert_test.go` 的 `TestAudioFormat` | `mpeg/mp3`→`mp3`、`wav/x-wav`→`wav`、`ogg`→`ogg`、`aac`→`aac`、other→`mp3` | `OpenAiChatModelTest.audioFormat_mapsMimeToWireFormat` |
+| OpenAI 的 `toOpenAIContent`（含 `file`/`audio` 分支） | `llm/openai/convert_test.go` 的 `TestToOpenAISystemContent`（该测试里直接调了 `toOpenAIContent` 验证 `audio` → `input_audio`；`file` 分支无 Go 用例） | `file` → `image_url`；`audio` → `input_audio` | `multimodal_fileMapsToImageUrlWithDataUrl` / `audioFormat_mapsMimeToWireFormat` |
+| Anthropic 的 `anthropicContent`（file / audio） | `llm/anthropic/convert_test.go` 的 `TestAnthropicContent`（覆盖 text / image URL / image base64 / file）；audio **无 Go 用例** | `file` → `document` 块（base64）；`audio`：Go 注释写「被忽略」但代码落入 `default` → 实际发空白 text 块（注释与实现不一致） | `L1AnthropicScenariosTest.a_multimodal_fileMapsToDocumentBlock`、`a_multimodal_audioBlockIsOmitted`（按注释意图不发块，SI-53） |
+| Gemini 的 `geminiParts` | `llm/gemini/convert_test.go` 的 `TestGeminiParts` | `image`/`audio` 有 URL → `fileData`，否则 `inlineData`（mime 缺省 `image/png`）；`file` 只走 `fileData` | `L1GeminiScenariosTest.g_multimodal_audioDataMapsToInlineData` / `g_multimodal_audioUrlMapsToFileData` / `g_multimodal_fileMapsToFileData` |
+| 未知类型处理（**有意差异**） | 三者 `default` 分支（Go 无专门用例） | 当 `text` 兜底（Gemini 静默跳过） | `OpenAiChatModelTest.unknownPartTypeFailsFast`、`L1GeminiScenariosTest.g_unknownPartTypeFailsFast`（SI-53） |
+
+> **Go 侧另有三条相邻用例本批未直接对位**（属于响应侧解析，不是出站映射）：
+> `TestChatStreamReasoningContent`、`TestChatStreamReasoningFallbackField`（流式思考增量与 `reasoning` 兼容字段）——
+> Java 侧对应能力已在 L1 语料用例中覆盖（`o2` / `o3` 语料）。
+
+> **为何这两项会被漏掉**：`#15` / `#16` 是本轮首次做**出站报文抓包**才暴露的。
+> 此前 13 项差异批的验证全部停在「内部对象构造正确」，而 `MessageParam` 少一个字段、
+> `toContentValue` 的 `default` 分支发空壳，三者都在**序列化边界**上，单测拿着内部对象看不出来。
+> 结论写进 §4 待补事项：**新增字段 / 新增分支必须断言出站报文**。
+
 ---
 
 ## 4. 待补事项（诚实清单）

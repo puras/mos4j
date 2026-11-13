@@ -871,12 +871,13 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 | 日志装饰器 | `LoggingChatModel(model, sink)` + `CallRecord` | 成功或失败**统一上报一次**；回调自身抛错**继续传播**（不让观测影响主流程） |
 | 超时装饰器 | `TimeoutChatModel(model, duration)` | 协作式取消；**外部取消优先于超时**；外部已取消时**不调用模型**；超时抛 `ModelTimeoutException` |
 | 降级装饰器 | `FallbackChatModel(primary, backup)` | 只在主模型**运行时失败**时降级；`CancellationException` **不降级**（取消不是失败）；能力集取并集 |
+| 缓存装饰器 | `CachingChatModel(model, ttl)` | **只缓存非流式**成功结果；`ttl <= 0` 不过期；取消检查**先于**缓存命中；失败 / 空响应不缓存；命中返回同一个 `Response` 对象；这是**本地**缓存，与服务端 prompt cache 不是一回事（对齐 Go `llm.WithCache`，键口径见 SI-50） |
 | 模型目录 | `ModelOption` / `Config.Builder.models(...)` / `defaultModelId(...)` | 保序；重复 ID 与未知 ID **fail-closed**；切换**下一轮生效**；**凭据只留在模型对象里**，不进快照与公开描述 |
 | 运行期切换 | `Agent.setModel(id)` / `modelId()` / `models()` | 不重建 Agent |
 | Describe 补充者 | `DescribeContributor.contribute(facts, caveats)` | 贡献者失败转成 caveat，**不让整个快照不可用** |
 | 关闭 | `Config.Builder.closer(AutoCloseable)` + `Agent.close()` | `Agent implements AutoCloseable`；**幂等**；逐个关；一个关不掉**不阻止**关别的；最后抛包装后的 `IllegalStateException` |
 
-**明确不做**：装饰器 `Cache`（用户口径：可缓）；Windows 后端；Starter 接 MCP；模型目录的凭据持久化。
+**明确不做**：Windows 后端；Starter 接 MCP；模型目录的凭据持久化。
 
 ---
 
@@ -1061,6 +1062,38 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 | 目录 | `minimal` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`，每个目录一个 README |
 
 **发布清单**见 [`docs/release.md`](../release.md)；**发布说明草稿**见 [`CHANGELOG.md`](../../CHANGELOG.md)。
+
+---
+
+### 3.16 多模态内容块与 thinking 回传（2026-11-08 二次复核修复）
+
+> 背景：`ContentPart` 的 `audio` / `file` 与 `Message.reasoningContent` 此前只有**字段声明**没有出站映射，
+> 由出站报文抓包实测发现，已按 Go 口径补齐。守护用例均**断言出站报文**，不断言内部对象。
+
+#### 3.16.1 `reasoning_content` 回传（#15，仅 OpenAI 兼容协议）
+
+| 项 | 口径 |
+|---|---|
+| 映射源 | `Message.reasoningContent`（投影消息字段，一直存在） → 请求 DTO 的 `reasoning_content` |
+| 生效条件 | **只对 `role=assistant` 且非空**；其余情况不输出该键（`NON_NULL`） |
+| 为什么必须有 | DeepSeek / Qwen thinking 模式**要求**回传上一轮思维链，不回传是第二轮 **400**，不是尺寸小点小号选项 |
+| 范围 | **只 OpenAI 兼容协议**；Anthropic 侧 Go 也不回传 thinking 块（不算缺口） |
+| Go 对照 | `llm/openai/openai.go` 的 `injectReasoningContent`（字节级注入） |
+| 守护 | `OpenAiChatModelTest.reasoningContent_isEchoedOnAssistantMessages` / `reasoningContent_absentWhenEmptyOrNonAssistant` |
+
+#### 3.16.2 `ContentPart` 的四类型 × 三协议映射矩阵
+
+| type | OpenAI | Anthropic | Gemini |
+|---|---|---|---|
+| `text` | `{"type":"text","text":...}` | `{"type":"text","text":...}` | `{"text":...}` |
+| `image` | `image_url`（URL 优先，否则 `data:\u003cmime\u003e;base64,\u003cdata\u003e`，mime 缺省 `image/png`） | `image`（URL 源或 base64 源，mime 缺省 `image/png`） | 有 URL → `fileData`（MIME **原样**），否则 `inlineData`（mime 缺省 `image/png`） |
+| `audio` | `input_audio`（`data` + `format`；format 按 mime 映射：`mpeg/mp3`→`mp3`、`wav/x-wav`→`wav`、`ogg`→`ogg`、`aac`→`aac`，未知→`mp3`） | **不发块**（Go 的注释写「被忽略」；代码实际落入 `default` 发了个空白 text 块，不照抄） | 有 URL → `fileData`（MIME **原样**），否则 `inlineData`（mime 缺省 `image/png`） |
+| `file` | **`image_url`**（同 `mediaURL` 口径，对齐 Go `toOpenAIContent` 的 file→image_url） | `{"type":"document","source":{"type":"base64","media_type":\u003cmime\u003e,"data":\u003cdata\u003e}}`（mime **原样**，**不**补 `image/png`） | **只** `fileData`（`{"mimeType":...,"fileUri":...}`） |
+| 其他 | **抛 `IllegalArgumentException`**（SI-53） | **不发块**（静默跳过，同其他无对应块的类型） | **抛 `IllegalArgumentException`**（SI-53） |
+
+- 不变式：**绝不发空壳块**（只有 `type` 没有内容的块）。修复前 `file` 出站正是 `{"type":"file"}`。
+- Go 对照：`toOpenAIContent` / `anthropicContent` / `geminiParts`（三者对未知类型的处理都是当 `text` 兜底，此处**有意收紧**，见 SI-53）。
+- 守护用例：`OpenAiChatModelTest` 6 条（含 `audioFormat_mapsMimeToWireFormat`）、`L1AnthropicScenariosTest` 2 条、`L1GeminiScenariosTest` 5 条（含 `fileData` 与 `inlineData` 的 MIME 缺省分野）。
 
 
 

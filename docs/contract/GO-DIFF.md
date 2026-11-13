@@ -46,9 +46,14 @@
 | #12 | 运行期可调参数（`SetConcurrency` / `SetMaxDecisionRounds` / `SetRules`） | 能力缺口 | ✅ 已对齐（口径登记为 B22） |
 | #13 | `llm.WithCache` 语义缓存装饰器 | 能力缺口 | ✅ 已对齐（缓存键口径登记为 SI-50） |
 | #14 | 压缩缺省口径（Go 缺省 128K 自动压 vs Java 不配就不压） | 语义差异 | ⚠️ 有意（SI-15） |
+| #15 | 请求侧 `reasoning_content` 回传（DeepSeek / Qwen thinking 模式多轮） | 能力缺口 | ✅ 已对齐（2026-11-08 二次复核发现并修复） |
+| #16 | `ContentPart` 的 audio / file 三协议映射 | 能力缺口 | ✅ 已对齐（file 一个有意差异见 SI-53） |
 
 > **编号说明**：#1–#10 是 2026-11-07 第一轮初查的编号；#11–#13 是同日逐行复核新增；#14 已在 SI-15 登记。
+> **#15 / #16 是 2026-11-08 第三次复核（出站报文抓包）发现的真缺口**：两者都是「声明了但没做到」，
+> 且有实际后果（thinking 模式多轮 400；多模态内容静默丢弃），因此归为能力缺口而非语义差异。
 > **本轮结论**：13 项差异的生产代码与定向用例全部落地；剩余工作是文档登记与人工签字，不是能力缺口。
+> **2026-11-08 二次复核补记**：#15 / #16 两项新增缺口已修复（出站报文抓包验证），详见 §3 末尾。
 
 ---
 
@@ -141,6 +146,28 @@
 - **Java 落点**：`CachingChatModel(ChatModel, Duration)`：只缓存**非流式**成功结果；`ttl <= 0` 不过期；取消检查**先于**缓存命中；失败 / 空响应不缓存；命中返回**同一个 `Response` 对象**；提供 `size()` / `clear()`。
 - **有意差异**：缓存键覆盖**完整请求上下文**（消息、reasoning、tool call、工具清单、schema、采样参数、response format、modalities；schema map 键递归排序后取 SHA-256），比 Go 的 `cacheKey(req)` 更严（SI-50）；本机制是**本地**缓存，**与服务端 prompt cache 不是一回事**。
 
+### #15 请求侧 `reasoning_content` 回传
+
+- **Go 证据**：`llm/openai/openai.go:87`（`doChat` 里 `body = injectReasoningContent(body, req.Messages)`）、同文件 `injectReasoningContent`（只对 assistant 消息且理由非空时逐条注入，其余字节不动）。
+- **Go 语义**：DeepSeek / Qwen 等 thinking 模式的**服务端要求**把上一轮的思维链原样回传；不回传不是「少一个可选字段」，是第二轮直接 **400**。
+- **Java 落点**：`OpenAiDtos.MessageParam` 新增 `reasoning_content` 字段；`OpenAiChatModel.toMessageParam` 通过 `reasoningContentOf(...)` 只在 **role=assistant 且内容非空**时赋值（其余情况留 null，`NON_NULL` 不输出）。Go 因为生成的请求结构体没这个字段只能序列化后做字节级注入；Java 的请求 DTO 是自己写的，多一个字段就能得到同样报文。
+- **修复前的实际后果**（2026-11-08 抓包实测）：assistant 消息带 `reasoningContent` 时，出站报文里根本没有 `reasoning_content`；DeepSeek-R1 / Qwen thinking 模式多轮对话必挂。
+- **范围界定**：**只改 OpenAI 兼容协议**。Anthropic 侧 Go 也不回传 thinking 块（`anthropicAssistantContent` 只产出 text + tool_use），所以不算缺口、不擅改。
+- **守护用例**：`OpenAiChatModelTest.reasoningContent_isEchoedOnAssistantMessages` / `reasoningContent_absentWhenEmptyOrNonAssistant`（均断言出站报文）。
+
+### #16 `ContentPart` 的 audio / file 三协议映射
+
+- **Go 证据**：`llm/openai/openai.go` 的 `toOpenAIContent`（`audio` → `input_audio`；`file` → `image_url` + `mediaURL`，包含 `audioFormat` 的 MIME→格式映射）；`llm/anthropic/anthropic.go` 的 `anthropicContent`（`file` → `document` 块，`NewAnthropicDocumentSourceBase64`；audio 无对应块类型）；`llm/gemini/gemini.go` 的 `geminiParts`（`image` / `audio` 有 URL 走 `fileData` 否则 `inlineData`；`file` 只走 `fileData`）。
+- **Go 语义**：四种类型 `text` / `image` / `audio` / `file` 在三个协议上各有真实落地形状；`mediaURL` 口径 = **URL 优先**，否则 `data:\u003cmime\u003e;base64,\u003cdata\u003e`，mime 缺省 `image/png`。
+- **Java 落点**：
+  - **OpenAI**：`image` 与 `file` 都走 `image_url`（`imagePart` + `mediaUrl`，URL 优先、data URL 兜底、mime 缺省 `image/png`）；`audio` 走 `input_audio`，`audioFormat` 改成 Go 的 switch 口径（`audio/mpeg`→`mp3` 等，未知→`mp3`）。**删掉了原来的 `default → Map.of("type", part.type())` 空壳分支**。
+  - **Anthropic**：`file` → `{"type":"document","source":{"type":"base64","media_type":\u003cmime\u003e,"data":\u003cdata\u003e}}`；`media_type` 原样用宿主给的 MIME（**不**像 image 那样缺省 `image/png`，对齐 Go）；`audio` **不发块**。
+    **注**：Go 的注释写「audio 暂不支持被忽略」，但代码里 audio 落在 `default: // text` 分支，实际会发出一个**空白 text 块**（注释与实现不一致，Go 的 `TestAnthropicContent` 也没覆盖 audio）。Java 按**注释的意图**实现（不发块），不照抄这个代码副作用。
+  - **Gemini**：`GeminiDtos.Part` 新增 `fileData` 字段与 `FileData` record + `ofFileData(...)` 工厂；`image` / `audio` 有 URL 走 `fileData`（MIME **原样**，对齐 Go 的 `MIMEType: p.MIME`）、否则 `inlineData`（mime 缺省 `image/png`，对齐 Go 的 `mimeOr`）；`file` 只走 `fileData`；**不再静默丢弃**。
+- **修复前的实际后果**（2026-11-08 抓包实测）：`file` 块出站是 `{"type":"file"}`（url / data 全丢）；Gemini 的 `audio` / `file` 被直接丢掉——宿主以为发了，其实没发。
+- **有意差异（SI-53）**：未知内容块类型 Java **报错**，Go 是 `default` 分支当 `text` 默默兜底（Anthropic 的 audio 也因此会发一个空 text 块）。理由：把未知块当文本发，等于把「一个视频块」当「空字符串文本」送上去，模型看到的请求与宿主想的不一样，且没有任何错误线索。
+- **守护用例**：OpenAI 4 条（file data URL / file URL 优先 / `audio/mpeg`→`mp3` / 未知类型报错）；Anthropic 2 条（document 块逐字段、audio 不发空壳块）；Gemini 5 条（audio inlineData / audio fileData / file fileData / `fileData` 与 `inlineData` 的 MIME 缺省分野 / 未知类型报错）。
+
 ---
 
 ## 4. 语义差异明细（⚠️ 有意，Java 侧口径不同）
@@ -166,6 +193,10 @@
 | 8d | 分节顺序表达 | 数值 `Order` 常量 | 固定**中心顺序名列表**（`base` → `environment` → `context` → `skills` → `mcp_servers` → `subagents` → `instructions` → `tools`） | 本表 8b |
 | 10a | 示例的交付形态 | Go 仓内 `examples/` | **独立模块 + 独立 profile**，不进默认 reactor；用例用脚本化替身模型（不碰网络） | SI-51 |
 | 13a | 缓存键覆盖面 | `cacheKey(req)` | 覆盖完整请求上下文（schema 递归排序后哈希） | SI-50 |
+| 16a | 未知内容块类型的处理 | `toOpenAIContent` / `anthropicContent` / `geminiParts` 的 `default` 分支当 `text` 兜底（gemini 是静默跳过） | **报错**（`IllegalArgumentException`）：把未知块当文本发，模型看到的请求与宿主想的不一样，且无任何错误线索 | SI-53 |
+| 16b | Anthropic 的 `audio` 块 | 注释写「暂不支持被忽略」，但代码落在 `default: // text` → 实际发出**空白 text 块**（注释与实现不一致） | **不发块**（按注释意图）：空文本块对模型是噪声 | SI-53 |
+| 16c | OpenAI 的 `audio` 只给 URL（无 base64） | 发出 `{"data":"","format":"mp3"}`（`input_audio` 只读 `p.Data`） | **报错**：`input_audio` 本来就不接受 URL | SI-53 |
+| 16d | `audioFormat` 对带参数 MIME 的处理 | 不剥离参数（`audio/wav; codecs=1` → `default` → `mp3`） | **先剥离 `;` 参数再映射**（→ `wav`）；不论哪种，未知 MIME 都落 `mp3` | SI-53 |
 
 > 「有意」的含义：**语义等价**，差别在**装配形状与失败时机**；跨语言回放时注意调用形状不同。
 

@@ -79,17 +79,22 @@ final class AnthropicDtos {
                                 "text", part.text() == null ? "" : part.text()));
                     } else if ("image".equals(part.type())) {
                         Map<String, Object> source = new java.util.LinkedHashMap<>();
-                        if (part.url() != null) {
+                        if (part.url() != null && !part.url().isEmpty()) {
                             source.put("type", "url");
                             source.put("url", part.url());
                         } else {
                             source.put("type", "base64");
-                            source.put("media_type", part.mimeType() == null ? "image/png" : part.mimeType());
+                            source.put("media_type", part.mimeType() == null || part.mimeType().isEmpty()
+                                    ? "image/png" : part.mimeType());
                             source.put("data", part.data() == null ? "" : part.data());
                         }
                         blocks.add(Map.of("type", "image", "source", source));
+                    } else if ("file".equals(part.type())) {
+                        blocks.add(documentBlock(part));
                     } else {
-                        blocks.add(Map.of("type", String.valueOf(part.type())));
+                        // Anthropic 没有 audio 等内容块类型。Go 的注释写「忽略」，但代码实际落在
+                        // default 分支发一个空白 text 块（注释与实现不一致）；这里按注释的意图不发块。
+                        continue;
                     }
                 }
                 return blocks;
@@ -104,6 +109,21 @@ final class AnthropicDtos {
                 return List.of(block);
             }
             return message.content() == null ? "" : message.content();
+        }
+
+        /**
+         * 文件块 → Anthropic {@code document} 块（base64 来源）。
+         *
+         * <p>对齐 Go {@code NewAnthropicDocumentSourceBase64(p.MIME, p.Data)}：
+         * media_type 原样用宿主给的 MIME（<b>不</b>像 image 那样缺省 {@code image/png}——
+         * 给文档编一个图片类型只会让服务端拒得更晚）。</p>
+         */
+        private static Map<String, Object> documentBlock(net.hegq.mos4j.model.ContentPart part) {
+            Map<String, Object> source = new java.util.LinkedHashMap<>();
+            source.put("type", "base64");
+            source.put("media_type", part.mimeType() == null ? "" : part.mimeType());
+            source.put("data", part.data() == null ? "" : part.data());
+            return Map.of("type", "document", "source", source);
         }
     }
 

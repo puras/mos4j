@@ -176,6 +176,112 @@ class OpenAiChatModelTest {
     }
 
     @Test
+    void multimodal_fileMapsToImageUrlWithDataUrl() throws IOException {
+        // Go 口径（toOpenAIContent 的 file 分支）：OpenAI 兼容协议没有文件块，file 走 image_url
+        server.respondJson("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},"
+                + "\"finish_reason\":\"stop\"}]}");
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "file", null, null, "QUJD", "application/pdf")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode body = MAPPER.readTree(server.lastRequestBody());
+        JsonNode part = body.get("messages").get(0).get("content").get(0);
+        assertEquals("image_url", part.get("type").asText(), "OPENAI 协议里 file 只能走 image_url（对齐 Go）");
+        assertEquals("data:application/pdf;base64,QUJD",
+                part.get("image_url").get("url").asText(), "base64 必须包成 data URL，不能只发类型");
+    }
+
+    @Test
+    void multimodal_filePrefersRemoteUrl() throws IOException {
+        server.respondJson("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},"
+                + "\"finish_reason\":\"stop\"}]}");
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "file", null, "https://x/a.pdf", "QUJD", "application/pdf")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode body = MAPPER.readTree(server.lastRequestBody());
+        JsonNode part = body.get("messages").get(0).get("content").get(0);
+        assertEquals("https://x/a.pdf", part.get("image_url").get("url").asText(),
+                "URL 优先（对齐 Go mediaURL）");
+    }
+
+    @Test
+    void audioFormat_mapsMimeToWireFormat() throws IOException {
+        server.respondJson("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},"
+                + "\"finish_reason\":\"stop\"}]}");
+
+        // audio/mpeg → mp3（旧实现会退化成子类型 mpeg，服务端不接受）
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "audio", null, null, "QUJD", "audio/mpeg")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode body = MAPPER.readTree(server.lastRequestBody());
+        JsonNode part = body.get("messages").get(0).get("content").get(0);
+        assertEquals("mp3", part.get("input_audio").get("format").asText(),
+                "audio/mpeg 必须映射成 mp3（对齐 Go audioFormat）");
+    }
+
+    @Test
+    void unknownPartTypeFailsFast() {
+        server.respondJson("{\"choices\":[]}");
+
+        // 不再发「只有 type 的空壳块」：发出去的是服务端看不懂的东西，等于请求已废
+        assertThrows(IllegalArgumentException.class, () -> model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart("video", null, null, null, null)),
+                        null, null, null, null)),
+                null, null, null, null, null, null)));
+    }
+
+    @Test
+    void reasoningContent_isEchoedOnAssistantMessages() throws IOException {
+        // DeepSeek-R1 / Qwen thinking 模式：assistant 的 reasoning_content 必须原样回传，否则第二轮 400
+        server.respondJson("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"2\"},"
+                + "\"finish_reason\":\"stop\"}]}");
+
+        model.chat(new Request(
+                List.of(Message.user("1+1=?"),
+                        new Message(net.hegq.mos4j.model.Role.ASSISTANT, "先分解再求解", null,
+                                null, null, null, "先分解再求解的思考过程")),
+                null, null, null, null, null, null));
+
+        JsonNode body = MAPPER.readTree(server.lastRequestBody());
+        JsonNode assistant = body.get("messages").get(1);
+        assertEquals("assistant", assistant.get("role").asText());
+        assertEquals("先分解再求解的思考过程", assistant.get("reasoning_content").asText(),
+                "请求侧必须回传 reasoning_content（对齐 Go injectReasoningContent）");
+    }
+
+    @Test
+    void reasoningContent_absentWhenEmptyOrNonAssistant() throws IOException {
+        server.respondJson("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},"
+                + "\"finish_reason\":\"stop\"}]}");
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, "hi", null, null, null, null,
+                                "不该回传的原因"),
+                        Message.assistant("ok")),
+                null, null, null, null, null, null));
+
+        JsonNode body = MAPPER.readTree(server.lastRequestBody());
+        assertTrue(body.get("messages").get(0).get("reasoning_content") == null,
+                "只对 assistant 消息注入");
+        assertTrue(body.get("messages").get(1).get("reasoning_content") == null,
+                "空推理不写字段（不发明\"reasoning_content\":null）");
+    }
+
+    @Test
     void nonOk2xxIsSuccess() throws IOException {
         // 201/204 也算成功：口径是「非 2xx 才算失败」，不是「只有 200 算成功」
         server.respondStatus(201, "{\"choices\":[{\"index\":0,\"message\":"

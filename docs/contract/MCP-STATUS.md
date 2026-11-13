@@ -75,7 +75,7 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
 
 **当前基线**（2026-11-08 六模块合并后实跑）：MCP 相关测试 **71 条全绿**（13 个测试类，
 分布在 `mos4j-tool` 与 `mos4j-agent`）；6 个 SDK 模块 `dependency:analyze` 全 `No dependency problems found`；
-四套 reactor：默认 **846 / 0 / 0 / 7**、含 starter **870 / 0 / 0 / 7**、`-Pexamples` **871 / 0 / 0 / 7**、`-Pexamples,mcp` **874 / 0 / 0 / 7**。
+四套 reactor（2026-11-08 二次复核修复后复跑）：默认 **859 / 0 / 0 / 7**、含 starter **883 / 0 / 0 / 7**、`-Pexamples` **884 / 0 / 0 / 7**、`-Pexamples,mcp` **887 / 0 / 0 / 7**。
 
 ## 2.1 M3 批次（已落地）
 
@@ -101,7 +101,6 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
 | 项 | 内容 | 状态 |
 |---|---|---|
 | **M3** | Starter 接入 | **有意不做**：Starter 引官方 SDK = 把 SLF4J / Reactor / json-schema-validator 带进 Starter 基线 |
-| — | 装饰器 `Cache` | 未做（用户口径：可缓） |
 
 ## 2.1 本轮补齐的三项（2026-11-07）
 
@@ -135,7 +134,7 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
    **认证** + **资源工具三个** + **policy / guard 联动** + **`mcp_servers` 分节** +
    **Describe 快照** + **`Agent.close()`** + **结果投影口径收紧** +
    **deferred 工具同轮再声明（MCP 层已证明）** + **streamable-http 真服务器 E2E**。
-   **还没做**：装饰器 `Cache`（用户口径：可缓）；**Starter 接入有意不做**（会污染 Starter 基线）。
+   **还没做**：**Starter 接入有意不做**（会污染 Starter 基线）。
    所以对外说「MoS4J 支持 MCP 客户端与编排」成立；说「所有 MCP 场景都已验收」不成立。
 2. **依赖纪律破例已发生**（slf4j-api / reactor-core / json-schema-validator），只限 `mos4j-tool` 一个模块；
    SDK 六模块的基线没变，但 **I7 条款本身需要修订**（见 `REVIEW-SHEET.md` 的 B17）。

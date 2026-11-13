@@ -7,6 +7,8 @@ import net.hegq.mos4j.model.support.FakeModelServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -240,4 +242,51 @@ class L1AnthropicScenariosTest {
         assertEquals("test-key", server.lastHeader("x-api-key"), "Anthropic 用 x-api-key 鉴权");
         assertEquals("2023-06-01", server.lastHeader("anthropic-version"));
     }
+
+    @Test
+    void a_multimodal_fileMapsToDocumentBlock() throws IOException {
+        server.respondJson("""
+                {"id":"msg_3","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],
+                 "stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}
+                """);
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(new net.hegq.mos4j.model.ContentPart(
+                                "file", null, null, "QUJD", "application/pdf")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode block = JSON.readTree(server.lastRequestBody())
+                .get("messages").get(0).get("content").get(0);
+        assertEquals("document", block.get("type").asText(),
+                "Anthropic 的 file 必须是 document 块（对齐 Go NewAnthropicDocumentSourceBase64）");
+        assertEquals("base64", block.get("source").get("type").asText());
+        assertEquals("application/pdf", block.get("source").get("media_type").asText());
+        assertEquals("QUJD", block.get("source").get("data").asText());
+    }
+
+    @Test
+    void a_multimodal_audioBlockIsOmitted() throws IOException {
+        // Anthropic 没有音频块类型；Go 侧也是直接忽略。断言「不发空壳块」——不是「实现了 audio」
+        server.respondJson("""
+                {"id":"msg_4","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],
+                 "stop_reason":"end_turn","usage":{"input_tokens":1,"output_tokens":1}}
+                """);
+
+        model.chat(new Request(
+                List.of(new Message(net.hegq.mos4j.model.Role.USER, null,
+                        List.of(net.hegq.mos4j.model.ContentPart.text("描述这段音频"),
+                                new net.hegq.mos4j.model.ContentPart(
+                                        "audio", null, null, "QUJD", "audio/wav")),
+                        null, null, null, null)),
+                null, null, null, null, null, null));
+
+        JsonNode blocks = JSON.readTree(server.lastRequestBody())
+                .get("messages").get(0).get("content");
+        assertEquals(1, blocks.size(), "audio 不发空壳块（只留文本块）");
+        assertEquals("text", blocks.get(0).get("type").asText());
+    }
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 }

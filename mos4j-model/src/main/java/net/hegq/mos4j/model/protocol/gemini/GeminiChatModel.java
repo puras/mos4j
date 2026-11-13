@@ -280,18 +280,37 @@ public final class GeminiChatModel implements ChatModel {
         return new GeminiDtos.GenerateContentRequest(contents, system, tools, generationConfig);
     }
 
-    /** 消息 → parts（文本 / 图片 / 工具回执 / 工具调用）。 */
+    /**
+     * 消息 → parts（文本 / 图片 / 音频 / 文件 / 工具回执 / 工具调用）。
+     *
+     * <p><b>媒体分派口径（对齐 Go {@code geminiParts}）</b>：
+     * {@code image} / {@code audio} 有远程地址走 {@code fileData}（MIME **原样**），否则走 {@code inlineData}（base64，MIME 缺省 {@code image/png}）；
+     * {@code file} <b>只</b>走 {@code fileData}（Gemini 侧的 file 就是 URI 形状）。
+     * 未知类型直接报错，<b>不静默丢弃</b>——静默丢丢的是宿主的意图，比报错难查得多。</p>
+     */
     private List<GeminiDtos.Part> partsOf(Message message) {
         List<GeminiDtos.Part> parts = new ArrayList<>();
         List<ContentPart> contentParts = message.contentParts();
         if (contentParts != null && !contentParts.isEmpty()) {
             for (ContentPart part : contentParts) {
-                if ("text".equals(part.type())) {
-                    parts.add(GeminiDtos.Part.ofText(part.text() == null ? "" : part.text()));
-                } else if ("image".equals(part.type())) {
-                    parts.add(GeminiDtos.Part.ofImage(
-                            part.mimeType() == null ? "image/png" : part.mimeType(),
-                            part.data() == null ? "" : part.data()));
+                String type = part.type() == null ? "" : part.type();
+                switch (type) {
+                    case "text" -> parts.add(GeminiDtos.Part.ofText(part.text() == null ? "" : part.text()));
+                    case "image", "audio" -> {
+                        if (part.url() != null && !part.url().isEmpty()) {
+                            // fileData 分支用**原样** MIME（Go: MIMEType: p.MIME）
+                            parts.add(GeminiDtos.Part.ofFileData(
+                                    part.mimeType() == null ? "" : part.mimeType(), part.url()));
+                        } else {
+                            // inlineData 分支才补缺省 MIME（Go: mimeOr(p.MIME, "image/png")）
+                            parts.add(GeminiDtos.Part.ofImage(
+                                    mimeOr(part.mimeType()), part.data() == null ? "" : part.data()));
+                        }
+                    }
+                    case "file" -> parts.add(GeminiDtos.Part.ofFileData(
+                            part.mimeType() == null ? "" : part.mimeType(),
+                            part.url() == null ? "" : part.url()));
+                    default -> throw new IllegalArgumentException("gemini: 不支持的内容块类型: " + part.type());
                 }
             }
         }
@@ -321,8 +340,12 @@ public final class GeminiChatModel implements ChatModel {
         return parts;
     }
 
-    // ------------------------------------------------------------ 流式聚合器
+    /** MIME 缺省 {@code image/png}（对齐 Go 的 {@code mimeOr(p.MIME, "image/png")}，**只用于 inlineData**）。 */
+    private static String mimeOr(String mimeType) {
+        return mimeType == null || mimeType.isEmpty() ? "image/png" : mimeType;
+    }
 
+    // ------------------------------------------------------------ 流式聚合器
     /** 流式聚合器：parts 拼接、finishReason、usage 直读。 */
     private final class Accumulator {
 
