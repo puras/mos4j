@@ -75,8 +75,8 @@ Go 侧清单来自**两个证据交叉**：① `Name() string` 实现的穷举�
 | 8 | `current_time` | `tool/builtin/current_time.go:19` | `current_time` | `tool/builtin/CurrentTimeTool.java:21` | ✅ 完全一致 |
 | 9 | `grant_access` | `tool/builtin/grant.go:47` | `grant_access` | `tool/builtin/GrantAccessTool.java:26` | ✅ 名称一致；**参数形状有意不同**（B13-4，见 §3.2） |
 | 10 | `tool_search` | `tool/searchtools/searchtools.go:24` | `tool_search` | `tool/searchtools/ToolSearchTool.java:19` | ✅ 名称与参数名一致（B13-2：`topK`→`limit`）；**语义有意不同**（B13-5，见 §3.3） |
-| 11 | `web_search` | `tool/web/web.go:70` | `web_search` | `tool/web/WebSearchTool.java:25` | ✅ 完全一致 |
-| 12 | `web_fetch` | `tool/web/web.go:229` | `web_fetch` | `tool/web/WebFetchTool.java:43` | ✅ 完全一致 |
+| 11 | `web_search` | `tool/web/web.go:70` | `web_search` | `tool/web/WebSearchTool.java` | ✅ 名称一致；**形状已对齐**（GO-DIFF #17：`queries[]` / `query` / `limit` 缺省 8 + 结构化回执） |
+| 12 | `web_fetch` | `tool/web/web.go:229` | `web_fetch` | `tool/web/WebFetchTool.java` | ✅ 名称一致；**形状已对齐**（GO-DIFF #18：抓取后端 `Fetcher` 可注入） |
 | 13 | `skill` | `agent/skill/tool.go:13`（`mos.go:415` 注册） | `skill` | `tool/skill/SkillTool.java` | ✅ 名称与参数一致（J7 已补齐；两边都是条件注册：只有存在模型可见技能才注册） |
 | — | — | — | `activate` | `tool/searchtools/ActivateTool.java:19` | ⚠️ **Java 有 / Go 无**（Go 的激活并入 `tool_search`，见 §3.3；B13-5 记为有意差异） |
 

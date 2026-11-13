@@ -1,6 +1,6 @@
 # Go 参考实现（MoS）↔ Java（MoS4J）差异登记表
 
-> 状态：**2026-11-08 实现轮版**（第三轮：13 项差异全部补齐）。
+> 状态：**2026-11-09 第四轮复核版**（第三轮 13 项差异全部补齐后，又补入 web_search / web_fetch / Anthropic 能力位 3 项）。
 > 口径：**语义重写**——判定的是「语义是否等价」，不是「是否逐行同形」。
 > 标注约定：`✅ 已对齐` / `⚠️ 语义差异（有意）` / `❌ 能力缺口（未实现）`。
 > 关联文档：[`SELF-INVENTED.md`](SELF-INVENTED.md)（Java 侧有意差异）、
@@ -48,6 +48,9 @@
 | #14 | 压缩缺省口径（Go 缺省 128K 自动压 vs Java 不配就不压） | 语义差异 | ⚠️ 有意（SI-15） |
 | #15 | 请求侧 `reasoning_content` 回传（DeepSeek / Qwen thinking 模式多轮） | 能力缺口 | ✅ 已对齐（2026-11-08 二次复核发现并修复） |
 | #16 | `ContentPart` 的 audio / file 三协议映射 | 能力缺口 | ✅ 已对齐（file 一个有意差异见 SI-53） |
+| #17 | `web_search` 的参数与回执形状 | 语义差异 | ✅ 已对齐（多查询 `queries[]` + 结构化回执） |
+| #18 | `web_fetch` 的抓取后端可注入性 | 能力缺口 | ✅ 已对齐（`Fetcher` 接口；`PinnedConnector` 降为缺省实现） |
+| #19 | Anthropic 能力位多报 `STRUCTURED_OUTPUT` | 能力位失实 | ✅ 已对齐（删 `STRUCTURED_OUTPUT`；`REASONING` 保留为**欠报**对位） |
 
 > **编号说明**：#1–#10 是 2026-11-07 第一轮初查的编号；#11–#13 是同日逐行复核新增；#14 已在 SI-15 登记。
 > **#15 / #16 是 2026-11-08 第三次复核（出站报文抓包）发现的真缺口**：两者都是「声明了但没做到」，
@@ -167,6 +170,33 @@
 - **修复前的实际后果**（2026-11-08 抓包实测）：`file` 块出站是 `{"type":"file"}`（url / data 全丢）；Gemini 的 `audio` / `file` 被直接丢掉——宿主以为发了，其实没发。
 - **有意差异（SI-53）**：未知内容块类型 Java **报错**，Go 是 `default` 分支当 `text` 默默兜底（Anthropic 的 audio 也因此会发一个空 text 块）。理由：把未知块当文本发，等于把「一个视频块」当「空字符串文本」送上去，模型看到的请求与宿主想的不一样，且没有任何错误线索。
 - **守护用例**：OpenAI 4 条（file data URL / file URL 优先 / `audio/mpeg`→`mp3` / 未知类型报错）；Anthropic 2 条（document 块逐字段、audio 不发空壳块）；Gemini 5 条（audio inlineData / audio fileData / file fileData / `fileData` 与 `inlineData` 的 MIME 缺省分野 / 未知类型报错）。
+
+### #17 `web_search` 的参数与回执形状
+
+- **Go 证据**：`tool/web/web.go` 的 `searchParams`（`Queries []string` / `Query string` / `Limit int`）、`normalizeQueries`、`Execute` 的返回 map、`renderSearch`；`tool/web/provider.go` 的 `Searcher.Search(ctx, queries []string, limit int)`、`SearchResult{Summary, Note, Sources, Truncated}`、`Source{URL, Title, Snippet, PublishedAt}`、`MultiSearcher`（并行 + URL 去重）。
+- **Go 语义**：`queries[]` 是首选形状（1–4 条并行），`query` 是单条容错；`limit` 缺省/上限都是 `DefaultMaxResults = 8`；回执是**结构化 map**（`queries` / `summary` / `note` / `sources` / `count` / `truncated` / `content`）；provider 失败是 **error**（`web_search 失败: %w`），但**部分查询失败不算全失败**（有结果就用结果，失败条数进 `note`；全部失败才 error）。
+- **Java 落点**：`SearchProvider.search(List<String>, int)` 返回 `Outcome(summary, note, sources, truncated)`；新增 `SearchProvider.Single` + `WebSearchTool.of(...)`（虚拟线程并行、URL 去重、部分失败进 note、全部失败抛 `ToolException`）；`WebSearchTool.Params(queries, query, limit)`，`MAX_QUERIES=4` / `MAX_RESULTS=8`；回执同形 map（`ExecPath.render` 序列化成 JSON 文本回填，与 Go `json.Marshal` 同效果）。
+- **破坏性变更**：`SearchProvider` 从单查询改成多查询（宿主实现要改签名；只有单查询的厂商 API 用 `Single` + `of()` 装配）。已获用户批准。
+- **修复前的实际后果**：Java 只收 `query`（模型发 `queries[]` 直接参数校验失败），`limit` 缺省 5 / 上限 10（与 Go 的 8 不同），回执是纯文本（宿主拿不到 `count` / `truncated` / `note`）。
+- **守护用例**：`WebToolsTest` 9 条（结构化回执逐字段 / 多查询去重合并 / `query` 单条容错 / 空查询与超 4 条报错 / `limit` 缺省与上限 8 / provider 失败是工具错误 / 部分失败进 note / 全部失败是错误）。
+
+### #18 `web_fetch` 的抓取后端可注入性
+
+- **Go 证据**：`tool/web/provider.go` 的 `Fetcher`（`Name()` + `Fetch(ctx, url) (FetchResult, error)`）；`tool/web/fetch.go` 的 `HTTPFetcher`（缺省实现，带 SSRF 五防线）；`tool/web/web.go` 的 `Fetch.Fetcher` 字段 + `Tools(searcher, fetcher)`（nil → 不给工具）。Go 注释明写：需要代理的宿主自备 `Fetcher` 实现。
+- **Go 语义**：抓取后端是**可注入接口**；缺省实现的 SSRF 防线只对直连公网成立，换实现 = 换访问策略（责任随之内移给宿主）。
+- **Java 落点**：新增 `mos4j-tool/web/Fetcher`（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`WebFetchTool.FetchRequest`（`uri` / `resolved` / `timeout` / `maxBytes`）；`PinnedConnector implements Fetcher`（`name() = "pinned"`，原 `fetch(URI, List, Duration, int)` 改成接 `FetchRequest`）；`WebFetchTool` 构造器改成 `()` / `(Fetcher)` / `(Fetcher, int)`。
+- **修复前的实际后果**：`WebFetchTool` 只收具体类 `PinnedConnector`，宿主无法接代理 / 专线 / 测试内网后端（Go 侧一直可以）。
+- **守护用例**：`WebToolsTest` 3 条（自备 `Fetcher` 可注入并拿到 `maxBytes` / 自定义后端的截断标记被渲染成附注 / `Fetcher` 必填且缺 url 报错）。
+
+### #19 Anthropic 能力位多报 `STRUCTURED_OUTPUT`
+
+- **Go 证据**：`llm/anthropic/anthropic.go` 的 `Capabilities()` = `CapFunctionCalling | CapStreaming | CapMultimodal`（无 `CapStructuredOutput`、无 `CapReasoning`）；Anthropic 协议本身没有 `response_format`（`grep ResponseFormat llm/anthropic/*.go` = 0 命中）。
+- **Go 语义**：三项能力位。
+- **Java 落点**：`AnthropicChatModel.capabilities()` 删掉 `STRUCTURED_OUTPUT`，保留 `FUNCTION_CALLING` / `STREAMING` / `MULTIMODAL` / `REASONING`。
+- **有意保留 `REASONING`**：Java 侧真的实现了（`reasoningEffort` → `thinking.budget_tokens`，以及 `thinking` 块与 `thinking_delta` 两个入站通道）；Go 不声明是 **Go 的欠报**，不是我们多报。方向相反，登记在本条而非 §4。
+- **修复前的实际后果**：能力位是对外公开的（`Describe` 快照、宿主据此决策），多报 `STRUCTURED_OUTPUT` 会让宿主对 Anthropic 发 `responseFormat` 然后被无声忽略；SDK 内无 fail-closed 消费方，所以不会引发运行时错误。
+- **守护用例**：`L1AnthropicScenariosTest.a_capabilitiesHaveNoStructuredOutput`（断言 FC/STREAMING/MULTIMODAL 在、`STRUCTURED_OUTPUT` 不在）。
+- **未处理（同行缺口）**：Gemini 反向缺 `REASONING`（Go `Capabilities()` 声明了）与 Gemini `responseFormat` 未实现——本轮暂缓（无 Gemini 接口环境验证），登记待办。
 
 ---
 

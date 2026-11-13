@@ -725,3 +725,18 @@
 - [x] **T15.8 全 profile 回归**（六模块合并后实跑）：默认 **846 / 0 / 0 / 7**、`-Pstarter` **870 / 0 / 0 / 7**、`-Pexamples` **871 / 0 / 0 / 7**、`-Pexamples,mcp` **874 / 0 / 0 / 7**（示例自身 25 / 28 条）；6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6 spring=0 / regex=0；裸 NUL=0。日志：`.j7log2/merge-*.log`
 - [x] **T15.9 用例不丢的核对**：逐测试类比对重构前后（`llm` → `model` 归一后），**用例数不一致 0 条**、无旧有新无的类；增量 = 71 条（正是原 `-Pmcp` 的 MCP 模块用例数），说明 MCP 进默认 reactor 而非丢测试
 - **本批不做**：跨语言**回放比对**（B25，需人做）；**Seatbelt 真机 apply 验收**（需换环境）；**内部私服 deploy**（需地址与凭证）
+
+## T16 web 工具与能力位对齐（2026-11-09）
+
+> 动因：逐项核对时发现「13 项差异全部补齐」的声明**未覆盖 `tool/web`**，
+> 旧文档的「✅ 完全一致」只对工具名成立。本轮补入 **GO-DIFF #17 / #18 / #19**。
+
+- [x] **T16.1 `web_search` 参数与回执形状对齐 Go**（GO-DIFF #17）：新增 `queries[]`（1–4 并行搜索 + URL 去重合并），`query` 降为单条容错；`limit` 缺省与上限都是 **8**（原 5 / 10）；回执改为结构化 map（`queries`/`summary`/`note`/`sources`/`count`/`truncated`/`content`）
+- [x] **T16.2 web_search 失败语义翻案**：provider 整体失败 → **工具错误**（`ToolException`，对齐 Go `web_search 失败: %w`）；只有「部分查询失败」才保留结果 + `note`；全部失败且零结果 → `web_search 失败: 全部查询都失败（…）: …`。**旧口径「非 2xx 是结果不是错误」作废**
+- [x] **T16.3 `SearchProvider` 接口改多查询形状**（**破坏性变更**，已获用户批准）：`search(List<String>, int) → Outcome`；单查询厂商用 `SearchProvider.Single` + `WebSearchTool.of(...)`（虚拟线程并行 + 去重 + 部分失败容忍）；删除 `WebSearchParams`（`mv` 至 `.j7log2/`）
+- [x] **T16.4 `web_fetch` 抽出可注入 `Fetcher`**（GO-DIFF #18）：新增 `Fetcher` 接口（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`WebFetchTool.FetchRequest(uri, resolved, timeout, maxBytes)`；`PinnedConnector` 从「唯一实现」降为**缺省实现**（`implements Fetcher`，`name()="pinned"`）；构造器 `(PinnedConnector,int)` → `()` / `(Fetcher)` / `(Fetcher,int)`。**换掉实现 = 换掉防线**
+- [x] **T16.5 Anthropic 删 `STRUCTURED_OUTPUT`**（GO-DIFF #19）：Anthropic 协议无 `response_format`；**保留 `REASONING`**（Java 真实现：`reasoningEffort` → `thinking.budget_tokens` + `thinking`/`thinking_delta` 两通道）；Go 不声明属欠报
+- [x] **T16.6 测试**：`WebToolsTest` 重写为 **18 条**（search 9 / fetch 7 / 公网边界 + Guideline 渲染）；`L1AnthropicScenariosTest` 新增 `a_capabilitiesHaveNoStructuredOutput`（→ 15 条）；`ToolContractTest` 参数期望改 `web_search → [queries, query, limit]`（required 期望改为空集：三参数都非必填）
+- [x] **T16.7 文档同步**：GO-DIFF 新增 #17/#18/#19；API.md web 段重写（`SearchProvider` 多查询 + `Outcome`/`Single`、`Fetcher`、`WebFetchTool` 构造器）+「非 2xx」口径改「失败是工具错误」+ §4 文案表 web 两行重写；INVARIANT-TESTS §2 的 web 两行改正；J5-STATUS（失败模式表、T5.8/T5.9 条数、场景计数 8/8 → 9/9）；L3-SCENARIOS（L3-26 改写、新增 L3-28、后续编号顺移）；SELF-INVENTED SI-22 补「换实现 = 换防线」；CHANGELOG 新节；REVIEW-SHEET 新增 **B27**（共 **114 条**判定项、**110 条待签**）
+- [x] **T16.8 全 profile 回归**：默认 **869 / 0 / 0 / 7**、`-Pstarter` **893 / 0 / 0 / 7**、`-Pexamples` **894 / 0 / 0 / 7**、`-Pexamples,mcp` **897 / 0 / 0 / 7**（106 个测试类）；依赖审计零告警；C6 spring=0 / regex import=0；裸 NUL=0；`git diff --check` rc=0；文档相对链接 0 断链。日志：`.j7log2/r4b-*.log`
+- **本批不做**：**Gemini `responseFormat`**（无 Gemini 接口环境，缺口已确认并登记）；**Gemini 缺 `REASONING`** 的反向差异（同行缺口，待有环境时一并处理）；**web_fetch 回执的 `status_code`/`title`/`content_type` 字段与 HTML title 提取**（Go 有，Java 仍为文本块——已在 GO-DIFF #18 登记）

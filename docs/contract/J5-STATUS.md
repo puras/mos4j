@@ -29,7 +29,8 @@ grep / glob / ls / current_time / grant_access 五个内置工具可用；
 | mos4j-tool | `web/PublicAddresses.java` | SSRF 防线一：公网判定（回环/内网/链路本地/CGNAT/ULA/IPv4 映射伪装全拒） |
 | mos4j-tool | `web/PinnedConnector.java` | SSRF 防线二：地址钉住（socket 直绑校验过的地址）；非文本 Content-Type 响亮失败 |
 | mos4j-tool | `web/WebFetchTool.java` | 防线三：只跟同源重定向（跨源拒绝、逐跳重校验）；防线四：512KB 上限 + 20s 超时 + 只解 UTF-8 |
-| mos4j-tool | `web/SearchProvider.java` / `WebSearchTool.java` | 搜索 provider 接口；`UNTRUSTED_NOTE` 冻结文案；非 2xx 是结果不是错误 |
+| mos4j-tool | `web/SearchProvider.java` / `WebSearchTool.java` | 搜索 provider 接口（多查询 + `Outcome` / `Single`）；`UNTRUSTED_NOTE` 冻结文案；**失败是工具错误**（部分查询失败才进 `note`；对齐 Go，GO-DIFF #17） |
+| mos4j-tool | `web/Fetcher.java` | 抓取后端接口（宿主可自备代理 / 内网实现，GO-DIFF #18）；`PinnedConnector` 为缺省实现 |
 | mos4j-tool | `tool/Guideline.java` / `Guidelines.java` | 跨调用指引进系统提示词；聚合渲染逐字节稳定 |
 | mos4j-tool | `tool/ToolRegistry.java` | `registerDeferred`（deferred 非空自动注册 tool_search/activate）；`list()` 只出非 deferred + 已激活；`admitHistoricalTools` 兑底 |
 | mos4j-driver | `driver/ReActDriver.java` | 每轮决策前重组装工具清单（激活下一轮生效）；执行前历史工具名并入 |
@@ -45,15 +46,15 @@ grep / glob / ls / current_time / grant_access 五个内置工具可用；
 | T5.5 grant_access | ✅ | `GrantAccessToolTest`（6 条：批准加根 / 拒绝含「不许绕」/ 回调异常 fail-closed / 挂载名单段 / 目录缺失 / 批准不缓存） |
 | T5.6 tool_search | ✅ | `DeferredToolsTest`（BM25 3 条：排序 / CJK bigram / 分词+词干+停用词） |
 | T5.7 Registry deferred | ✅ | `DeferredToolsTest`（5 条：登记不进清单+自动注册辅助工具 / activate 未知名 / 历史并入 / 重名 fail-closed / 空集不注册）+ `DeferredFlowTest`（2 条：下一轮生效 / 历史并入执行） |
-| T5.8 web_search | ✅ | `WebToolsTest`（3 条：归一化+不可信标注 / 异常是结果 / 参数校验） |
-| T5.9 web_fetch | ✅ | 同上（7 条：回环拒 / 内网字面量拒 / IPv4 映射伪装拒 / 链路本地拒 / 协议与主机 / 公网判定边界 13 个地址） |
+| T5.8 web_search | ✅ | `WebToolsTest`（9 条 search：归一化+不可信标注 / 结构化回执逐字段 / 多查询并行去重 / `query` 单条容错 / `queries` 校验空+超 4 条 / `limit` 钳制 8 / provider 异常=工具错误 / 部分失败进 note / 全部失败=错误） |
+| T5.9 web_fetch | ✅ | 同上（7 条 fetch：回环拒 / 内网字面量拒 / IPv4 映射伪装拒 / 链路本地拒 / 协议与主机 / 自备 `Fetcher` 可注入 / `Fetcher` 必填+缺 url） + `publicAddressBoundaries`（13 个地址边界） |
 | T5.10 Guideline | ✅ | 同上（聚合渲染稳定 / 空规范空串） |
 
 ## 场景覆盖（真实计数）
 
 | 层 | 绿 | 未做 | 说明 |
 |---|---|---|---|
-| L3 D4（工具全集与联网） | **8/8**（L3-22 … L3-29） | — | 新增段，见 `L3-SCENARIOS.md` |
+| L3 D4（工具全集与联网） | **9/9**（L3-22 … L3-30） | — | 新增段，见 `L3-SCENARIOS.md` |
 | G5 机械验收 | **3/3** | — | 十工具行为一致 / RE2J 无 `java.util.regex` / SSRF 绕过测试（防线一） |
 
 ## 验证记录（真实输出）
@@ -105,7 +106,8 @@ $ grep -rn "import org.springframework" --include="*.java" mos4j-*/src/main → 
 | SSRF 只校验 URL 文本 | `localhost.example.com` 文本无害、解析是 127.0.0.1 | `WebFetchTool` 先 DNS 解析再逐地址校验（校验解析结果） |
 | 校验与连接之间 DNS 换地址（rebinding） | 校验白做，连接打到内网 | `PinnedConnector` socket 直绑校验过的地址（`Proxy(DIRECT, InetSocketAddress(resolved))`），无第二次解析 |
 | 重定向绕过校验 | 每一跳都是新地址，自动跟随等于没校验 | 关闭自动重定向；同源判定 + 跨源拒绝 + 重定向目标再校验 |
-| 搜索服务故障当工具错误 | 整轮 turn 以 error 收尾，模型失去换词重试的机会 | `WebSearchTool` 捕获 provider 异常 → 「搜索失败」回执（是结果不是错误） |
+| 搜索服务故障假装成功 | 模型把「搜索失败」当结果继续推理，不知道信息是拿不到的 | `WebSearchTool` 抛 `ToolException`（工具错误，模型与宿主都能看到）；**只有部分查询失败**才保留结果 + `note`（对齐 Go） |
+| 换抓取后端把 SSRF 防线也换掉还说安全 | 宿主接代理实现时以为仍受 SDK 防线保护 | `Fetcher` 接口的 Javadoc 明写「换掉实现 = 换掉防线」；`PinnedConnector.name()` 可在 `Describe` 里区分 |
 | 外部内容当可信输入 | 搜索摘要 / 网页正文可含提示注入 | `UNTRUSTED_NOTE` 冻结文案打头（web_search 与 web_fetch 共用） |
 | 非文本响应用硬解 | 二进制解码给模型 = 乱码 + 幻觉 | `PinnedConnector` 按 Content-Type 判定，非文本响亮失败 |
 | grant_access 自己判「能不能加」 | 模型自己给自己发钥匙 | `AccessApprover` 宿主回调；本工具只转发申请；回调异常 = 拒绝（fail-closed） |

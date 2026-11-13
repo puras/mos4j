@@ -99,12 +99,13 @@
 - macOS Seatbelt 的**强制效果**未在真机验收（本机 `sandbox_apply: Operation not permitted`）——验收包见 `tools/seatbelt-acceptance/`。
 - Linux / Windows 后端未验证 / 未实现。
 - 技能 `allowed-tools` 只诊断不生效（不造第二套安全真相）。
-- 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（113 条判定项，**109 条待签**）。
-- 相对 Go 参考实现的 **13 项能力缺口已全部补齐**（2026-11-08）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
+- 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（114 条判定项，**110 条待签**）。
+- 相对 Go 参考实现的 **16 项能力缺口已补齐**（2026-11-09 第四轮）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
+- **Gemini `responseFormat` 未实现**（协议支持 `responseMimeType` / `responseSchema`，Java 仅传 temperature / maxTokens）：需要真实 Gemini 接口环境验证，已确认缺口并暂缓。
 
 ### 机械门基线
 
-- 默认 reactor **859 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，106 个测试类）；`-Pstarter` **883 / 7**；`-Pexamples` **884 / 7**（示例自身 25 条）；`-Pexamples,mcp` **887 / 7**（示例自身 28 条）。
+- 默认 reactor **869 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，106 个测试类）；`-Pstarter` **893 / 7**；`-Pexamples` **894 / 7**（示例自身 25 条）；`-Pexamples,mcp` **897 / 7**（示例自身 28 条）。
 - 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
 
 ---
@@ -132,4 +133,31 @@
 ### 新的有意差异与登记
 
 - **SI-53（新增）**：未知内容块类型 **fail-fast**（`IllegalArgumentException`），而不是 Go 的「当 `text` 兜底」。理由：把未知块当文本发 = 把空字符串送上去，模型看到的请求与宿主想的不一样且两端无错误线索。
+
+---
+
+## 未发布 —— web 工具与能力位对齐（2026-11-09）
+
+> 触发问题：「还有什么功能需要处理的」——逐项核对 B 表 / 源码 TODO / GO-DIFF 对位表时，发现 **web 工具从未进入差异清单**。旧文档的「✅ 完全一致」只对工具名成立。
+
+### `mos4j-tool`：`web_search` 参数与回执形状对齐 Go（GO-DIFF #17）
+
+- **参数**：新增 `queries[]`（首选，1–4 条并行搜索后按 URL 去重合并）；`query` 降为单条容错；`limit` 缺省与上限都是 **8**（原为 5 / 10，与 Go 的 `DefaultMaxResults` 不符）。
+- **回执**：纯文本 → **结构化 map**（`queries` / `summary` / `note` / `sources` / `count` / `truncated` / `content`），`ExecPath` 序列化成 JSON 回填（与 Go `json.Marshal` 同效果）。
+- **失败语义翻案**：原实现把 provider 非 2xx 当结果回执；复核 Go 的 `Search.Execute` 后确认是**工具错误**（`web_search 失败: %w`）。只有「部分查询失败」才用结果 + `note`；全部失败才算整体错误。
+- **接口破坏性变更**：`SearchProvider.search(String, int)` → `search(List<String>, int) → Outcome`；只有单查询 API 的服务商实现 `SearchProvider.Single` 后用 `WebSearchTool.of(...)` 装配（虚拟线程并行 + 去重 + 部分失败容忍）。
+- 守护：`WebToolsTest` 9 条（结构化回执逐字段 / 多查询去重 / 单条容错 / 参数校验 / `limit` 钳制 / 失败是工具错误 / 部分失败进 note / 全部失败是错误）。
+
+### `mos4j-tool`：`web_fetch` 抽出可注入 `Fetcher`（GO-DIFF #18）
+
+- 新增 `Fetcher` 接口（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`PinnedConnector` 从「唯一实现」降为**缺省实现**（`implements Fetcher`，`name() = "pinned"`）。
+- `WebFetchTool` 构造器：`(PinnedConnector, int)` → `()` / `(Fetcher)` / `(Fetcher, int)`。
+- **换掉实现 = 换掉防线**：缺省 `PinnedConnector` 带四条 SSRF 防线（公网校验 / 地址钉住 / 同源重定向 / 体积超时），需要走代理 / 专线 / 测试内网的宿主自备实现并一并接过访问策略责任。
+- 守护：`WebToolsTest` 3 条（自备后端可注入并拿到 `maxBytes` / 截断标记渲染成附注 / 必填校验）。
+
+### `mos4j-model`：Anthropic 能力位对齐 Go（GO-DIFF #19）
+
+- 删掉 `capabilities()` 里的 `STRUCTURED_OUTPUT`：Anthropic 协议根本没有 `response_format`，声明了就是假的（宿主会据此发 `responseFormat` 然后被无声忽略）。
+- **保留 `REASONING`**：Java 侧真的实现了（`reasoningEffort` → `thinking.budget_tokens` + `thinking` / `thinking_delta` 两通道）——这里 Go 不声明属**欠报**，不是我们多报。
+- 守护：`L1AnthropicScenariosTest.a_capabilitiesHaveNoStructuredOutput`。
 - [`docs/contract/GO-DIFF.md`](docs/contract/GO-DIFF.md) 新增 #15 / #16 两条（均为「声明了但没做到」的真缺口，已修复）；`SELF-INVENTED.md` 新增 SI-53；评审表 113 条判定项 / **109 条待签**。
