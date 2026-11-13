@@ -84,7 +84,7 @@ class ToolContractTest {
         ObserveGate gate = new ObserveGate();
         LocalRunner runner = LocalRunner.builder(base).build();
         DeferredToolCatalog catalog = new DeferredToolCatalog();
-        SearchProvider provider = (query, limit) -> List.of();
+        SearchProvider provider = (queries, limit) -> SearchProvider.Outcome.empty();
 
         registry = new ToolRegistry();
         registry.register(new ReadFileTool(fs, gate));
@@ -153,7 +153,7 @@ class ToolContractTest {
         expected.put("grant_access", List.of("mount", "dir", "reason"));
         expected.put("tool_search", List.of("query", "limit"));
         expected.put("activate", List.of("tools"));
-        expected.put("web_search", List.of("query", "limit"));
+        expected.put("web_search", List.of("queries", "query", "limit"));
         expected.put("web_fetch", List.of("url"));
         expected.put("skill", List.of("name"));
 
@@ -180,7 +180,7 @@ class ToolContractTest {
         expected.put("grant_access", List.of("mount", "dir"));
         expected.put("tool_search", List.of("query"));
         expected.put("activate", List.of("tools"));
-        expected.put("web_search", List.of("query"));
+        expected.put("web_search", List.of());
         expected.put("web_fetch", List.of("url"));
         expected.put("skill", List.of("name"));
 
@@ -199,5 +199,25 @@ class ToolContractTest {
             assertTrue(!tool.parameters().containsKey("title"), tool.name() + " 的 schema 不该有 title");
             assertTrue(!tool.parameters().containsKey("$defs"), tool.name() + " 的 schema 不该有 $defs");
         }
+    }
+
+    @Test
+    @DisplayName("web_search 的 queries 是字符串数组（对齐 Go 的 Queries []string）")
+    void webSearchQueriesIsAnArrayOfStrings() {
+        net.hegq.mos4j.model.Tool webSearch = registry.list().stream()
+                .filter(tool -> "web_search".equals(tool.name()))
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) webSearch.parameters().get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> queries = (Map<String, Object>) properties.get("queries");
+        assertEquals("array", queries.get("type"), "queries 必须是数组（否则模型发 queries[] 会被拒）");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> items = (Map<String, Object>) queries.get("items");
+        assertEquals("string", items.get("type"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> query = (Map<String, Object>) properties.get("query");
+        assertEquals("string", query.get("type"), "query 是单条容错形状，保持字符串");
     }
 }

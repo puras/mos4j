@@ -24,21 +24,28 @@ import java.util.Locale;
  * 连接时直接 {@code new Socket(inetAddress, port)}，socket 工厂不走 DNS。
  * 这是 JDK 标准库内能做到的最小钉法；不引入额外 HTTP 客户端依赖（依赖纪律）。
  */
-public class PinnedConnector {
+public class PinnedConnector implements Fetcher {
+
+    /** 后端名（诊断用）。 */
+    @Override
+    public String name() {
+        return "pinned";
+    }
 
     /**
-     * 抓取。
+     * 抓取（防线二：只用传入的已校验地址拨号）。
      *
-     * @param uri      目标
-     * @param resolved 校验过的地址（连接只用这些）
-     * @param timeout  超时
-     * @param maxBytes 响应体上限
+     * @param request 请求（地址 / 已校验地址 / 超时 / 体积上限）
      * @return 正文或重定向
      * @throws IOException 网络失败（非 2xx 之外的传输层故障）
      * @throws ToolException 非文本类型等语义失败
      */
-    public WebFetchTool.FetchResult fetch(URI uri, List<InetAddress> resolved,
-                                          Duration timeout, int maxBytes) throws IOException {
+    @Override
+    public WebFetchTool.FetchResult fetch(WebFetchTool.FetchRequest request) throws IOException {
+        URI uri = request.uri();
+        List<InetAddress> resolved = request.resolved();
+        Duration timeout = request.timeout();
+        int maxBytes = request.maxBytes();
         URL url = uri.toURL();
         HttpURLConnection connection = (HttpURLConnection) openPinned(url, resolved, timeout);
         connection.setInstanceFollowRedirects(false); // 重定向自己管（防线三）
@@ -74,6 +81,7 @@ public class PinnedConnector {
     private boolean readTruncated;
 
     /** 上次抓取是否触发了截断（线程内顺序使用；工具本身串行）。 */
+    @Override
     public boolean lastReadTruncated() {
         return readTruncated;
     }
