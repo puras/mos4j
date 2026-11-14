@@ -55,6 +55,9 @@ public final class GeminiChatModel implements ChatModel {
     /** 缺省开关值：流结束必须有 finishReason（比 OpenAI/Anthropic 严）。 */
     public static final boolean DEFAULT_REQUIRE_FINISH = true;
 
+    /** 结构化输出下发的 MIME 类型（Gemini 侧的开关就是它，对齐 Go {@code ResponseMIMEType}）。 */
+    private static final String JSON_MIME_TYPE = "application/json";
+
     private final GeminiConfig config;
     private final HttpTransport transport;
     private final ObjectMapper mapper;
@@ -275,9 +278,34 @@ public final class GeminiChatModel implements ChatModel {
             }
             tools = List.of(new GeminiDtos.ToolDeclaration(decls));
         }
-        GeminiDtos.GenerationConfig generationConfig =
-                new GeminiDtos.GenerationConfig(request.temperature(), request.maxTokens());
+        GeminiDtos.GenerationConfig generationConfig = generationConfigOf(request);
         return new GeminiDtos.GenerateContentRequest(contents, system, tools, generationConfig);
+    }
+
+    /**
+     * 生成配置：采样参数 + 结构化输出。
+     *
+     * <p><b>结构化输出的 Gemini 形状</b>（对齐 Go {@code buildRequest}）：
+     * {@code json_schema} → {@code responseMimeType=application/json} +
+     * {@code responseSchema}；{@code json_object} → 只发 MIME 类型。
+     * <b>{@code name} 在 Gemini 侧没有落点</b>（协议字段里没有名字位）——
+     * 不是丢了，是 Go 也没发。
+     */
+    private GeminiDtos.GenerationConfig generationConfigOf(Request request) {
+        Request.ResponseFormat format = request.responseFormat();
+        if (format == null) {
+            return new GeminiDtos.GenerationConfig(request.temperature(), request.maxTokens());
+        }
+        String mimeType = null;
+        Map<String, Object> schema = null;
+        if ("json_schema".equals(format.type())) {
+            mimeType = JSON_MIME_TYPE;
+            schema = format.schema();
+        } else if ("json_object".equals(format.type())) {
+            mimeType = JSON_MIME_TYPE;
+        }
+        return new GeminiDtos.GenerationConfig(
+                request.temperature(), request.maxTokens(), mimeType, schema);
     }
 
     /**

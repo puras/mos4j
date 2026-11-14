@@ -45,6 +45,7 @@ public final class Config {
     private final CompactionService compaction;
     private final net.hegq.mos4j.context.CompactionFailurePolicy compactionFailurePolicy;
     private final java.util.function.Consumer<Throwable> onCompactionFailure;
+    private final java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
     private final ToolOutputLimiter outputLimiter;
     private final SkillCatalog skills;
     private final net.hegq.mos4j.tool.subagent.SubAgentCatalog subAgents;
@@ -104,6 +105,7 @@ public final class Config {
                 ? net.hegq.mos4j.context.CompactionFailurePolicy.FAIL_CLOSED
                 : builder.compactionFailurePolicy;
         this.onCompactionFailure = builder.onCompactionFailure;
+        this.onChunk = builder.onChunk;
         this.outputLimiter = builder.outputLimiter;
         this.skills = builder.skills;
         this.subAgents = builder.subAgents;
@@ -238,6 +240,15 @@ public final class Config {
         return onCompactionFailure;
     }
 
+    /**
+     * 流式增量回调（可空 = 丢弃增量）。
+     *
+     * <p>只在 {@link #stream()} 为 {@code true} 时被调用；每个增量块一次。
+     */
+    public java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk() {
+        return onChunk;
+    }
+
     /** 工具输出限流器（可空 = 未装配限流）。 */
     public ToolOutputLimiter outputLimiter() {
         return outputLimiter;
@@ -368,6 +379,7 @@ public final class Config {
         private CompactionService compaction;
         private net.hegq.mos4j.context.CompactionFailurePolicy compactionFailurePolicy;
         private java.util.function.Consumer<Throwable> onCompactionFailure;
+        private java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
         private ToolOutputLimiter outputLimiter;
         private SkillCatalog skills;
         private net.hegq.mos4j.tool.subagent.SubAgentCatalog subAgents;
@@ -538,6 +550,23 @@ public final class Config {
          */
         public Builder onCompactionFailure(java.util.function.Consumer<Throwable> onCompactionFailure) {
             this.onCompactionFailure = onCompactionFailure;
+            return this;
+        }
+
+        /**
+         * 装流式增量回调（只在 {@link #stream(boolean)} 为 {@code true} 时被调用）。
+         *
+         * <p><b>不装就等于放弃实时推送</b>：流式链路照旧走（协议层仍按流式解析），
+         * 只是增量被丢弃，宿主拿到的仍是 {@code run(...)} 的最终字符串。
+         *
+         * <p>回调在<b>调用线程</b>上同步执行：回调里阻塞会拖慢本轮决策，
+         * 需要耗时处理时自己转交出去（例如丢进队列，由另一个线程消费）。
+         *
+         * @param onChunk 增量回调（可空 = 丢弃增量）
+         * @return this
+         */
+        public Builder onChunk(java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk) {
+            this.onChunk = onChunk;
             return this;
         }
 

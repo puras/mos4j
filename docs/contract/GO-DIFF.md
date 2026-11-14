@@ -54,6 +54,7 @@
 | #20 | Go 的十六进制实体解码事实上从不生效（`ParseInt("x41")` 必失败） | Go 实现瑕疵 | ⚠️ Java 按意图解（见 §3 #20） |
 | #21 | Go 的代理对码点解码静默变成 U+FFFD | Go 实现口径 | ⚠️ Java 原样保留实体（见 §3 #21） |
 | #22 | Go 的「内嵌 IPv4 的 IPv6 也按 IPv4 判」事实上是死代码（`embeddedIPv4` 返回 16 字节 → `isPublicIPv4` 首条 `v4[0]==0` 必中） | Go 实现瑕疵 | ⚠️ Java 对齐**可观测行为**（一律拒），不对齐注释意图（见 §3 #22） |
+| #23 | 流式增量对宿主的出口（`Config.OnChunk`） | 能力缺口 | ✅ 已对齐（`Mos4j.Builder.onChunk` / `Config.Builder.onChunk`，见 §3 #23） |
 
 > **编号说明**：#1–#10 是 2026-11-07 第一轮初查的编号；#11–#13 是同日逐行复核新增；#14 已在 SI-15 登记。
 > **#15 / #16 是 2026-11-08 第三次复核（出站报文抓包）发现的真缺口**：两者都是「声明了但没做到」，
@@ -62,6 +63,8 @@
 > Java 有意偏离并给出理由，因此状态标 ⚠️ 而非 ✅。
 > **本轮结论**：13 项差异的生产代码与定向用例全部落地；剩余工作是文档登记与人工签字，不是能力缺口。
 > **2026-11-08 二次复核补记**：#15 / #16 两项新增缺口已修复（出站报文抓包验证），详见 §3 末尾。
+> **2026-11-14 能力缺口复查补记**：#19 的连带项（Gemini `responseFormat`）与 #23（流式出口）已修复；
+> 两者都是「下层全部在位、宿主侧接不上」型缺口，#23 尤其严重——文档提了流式，宿主却找不到入口。
 
 ---
 
@@ -248,7 +251,21 @@
 - **有意保留 `REASONING`**：Java 侧真的实现了（`reasoningEffort` → `thinking.budget_tokens`，以及 `thinking` 块与 `thinking_delta` 两个入站通道）；Go 不声明是 **Go 的欠报**，不是我们多报。方向相反，登记在本条而非 §4。
 - **修复前的实际后果**：能力位是对外公开的（`Describe` 快照、宿主据此决策），多报 `STRUCTURED_OUTPUT` 会让宿主对 Anthropic 发 `responseFormat` 然后被无声忽略；SDK 内无 fail-closed 消费方，所以不会引发运行时错误。
 - **守护用例**：`L1AnthropicScenariosTest.a_capabilitiesHaveNoStructuredOutput`（断言 FC/STREAMING/MULTIMODAL 在、`STRUCTURED_OUTPUT` 不在）。
-- **未处理（同行缺口）**：Gemini 反向缺 `REASONING`（Go `Capabilities()` 声明了）与 Gemini `responseFormat` 未实现——本轮暂缓（无 Gemini 接口环境验证），登记待办。
+- **未处理（同行缺口）**：Gemini 反向缺 `REASONING`（Go `Capabilities()` 声明了）——暂缓（Go 自己也不往请求体发 `ReasoningEffort`，无可观测行为可对齐），登记待办。
+- **连带修复：Gemini `responseFormat`（已落地，2026-11-14）**：Go `llm/gemini/gemini.go:207-211` 里 `json_schema` → `ResponseMIMEType="application/json"` + `ResponseSchema`，`json_object` → 只设 MIME。Java 原先 `GenerationConfig` 只有 `temperature` / `maxOutputTokens`，声明了 `STRUCTURED_OUTPUT` 却不发这两个键——与本条同类（多报），只是方向相反（Go 支持而 Java 缺）。现已对齐：`GeminiChatModel.generationConfigOf` 按 `responseFormat.type()` 分支，`name` 在 Gemini 协议无落点、Go 也不发，故不下发。
+- **同一处的连带缺陷**：`GenerationConfig` 原先把未设置的采样字段序列化成 `{"temperature":null,"maxOutputTokens":null}`，而 Go 每个字段都是 `omitempty`。已加 `@JsonInclude(NON_NULL)`，未设置时整键不出现。
+- **守护用例**：`L1GeminiScenariosTest` 新增 5 条（`g_structuredOutput_jsonSchemaSendsMimeTypeAndSchema` / `g_structuredOutput_jsonObjectSendsMimeTypeOnly` / `g_structuredOutput_absentWhenNotRequested` / `g_unsetSamplingParamsAreOmittedNotSentAsNull` / `g_capabilityDeclarationsMatchWireImplementation`）。
+
+### #23 流式增量对宿主的出口（`Config.OnChunk`）
+
+- **Go 证据**：`mos.go:220-224`（`Config.OnChunk func(delta string, reasoning bool)`）、`mos.go:754`（装配进 `RunContext.OnChunk`）、`agent/driver/react/react.go:509-516`（推增量时回调）。
+- **Go 语义**：`Stream=true` 且装了 `OnChunk` 时，每个增量块回调一次；`Stream=false` 或未装回调都不影响最终结果。
+- **Java 修复前的状态**：链路下方全通——`RunContext.onChunk` 存在、`ReActDriver.decide` 在 `stream()` 为真时已把它接进 `ReActPlanner.nextActionStream`；但**门面没有入口**：`Config.Builder` 与 `Mos4j.Builder` 都没有 `onChunk(...)`。宿主能开 `stream(true)`，却拿不到任何增量（有开关、没插座）。
+- **Java 落点**：`Config` 加 `onChunk` 字段 / getter / Builder 方法；`Agent` 装配时 `.onChunk(config.onChunk())`；`Mos4j.Builder` 加同名方法并链路到 `Config.Builder`。
+- **形状差异（有意）**：Go 是 `func(delta string, reasoning bool)`（拆成两次回调），Java 是 `Consumer<StreamChunk>`（四字段 record 整体传）。理由：Java 侧 `StreamChunk` 已是 `chatStream` 全链的既定形状（含 `toolCall` / `finishReason` 两个 Go 回调没有的位置），拆成两个参数会丢字段。
+- **语义约束**：只在 `stream(true)` 时被调；每增量块一次；**在调用线程上同步执行**（阻塞会拖慢决策，耗时转交自行处理）；不装 = 增量丢弃、链路照走。
+- **子代理隔离**：Go 在 `subagent.go:107-108` 强制 `Stream=false` + `OnChunk=nil`；Java `DefaultSubAgentRunner` 本来就不开流（`.stream(false)`），无需额外置空。
+- **守护用例**：`ReActDriverTest` 3 条（`onChunkReceivesIncrementsWhenStreamIsOn` / `streamOffNeverCallsOnChunk` / `withoutOnChunkStreamingStillWorks`）、`Mos4jProtocolKnobsTest.onChunkReachesTheDriverThroughTheFacade`（门面穿透）、`ChatExampleTest.streamingRendersIncrements`（示例级端到端）。
 
 ---
 

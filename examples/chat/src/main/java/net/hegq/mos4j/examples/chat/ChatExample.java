@@ -73,7 +73,11 @@ public final class ChatExample {
                 continue;
             }
             try {
-                System.out.println(mos4j.run(sessionId, line));
+                // 流式：增量在 onChunk 里实时输出，run(...) 的返回值也是完整回复。
+                // 两者都印会重复一遍，所以这里只靠增量渲染，返回值丢掉
+                // （对齐 Go 示例的 `_ = reply // 回复已由 OnChunk 流式渲染`）。
+                mos4j.run(sessionId, line);
+                System.out.println();
             } catch (Exception e) {
                 // 一轮失败不该把整个进程带走：把原因说清楚，宿主自己决定要不要继续。
                 System.out.println("[这一轮失败] " + (e.getMessage() == null ? e.toString() : e.getMessage()));
@@ -95,12 +99,35 @@ public final class ChatExample {
                 .systemPrompt(SYSTEM_PROMPT)
                 .guards(guards())
                 .approvals(approvals)
+                // 流式：真人的对话界面等不了一整段文本回完。
+                // 增量的思维链用灰色前缀区分开——不然推理内容和正式回答会粘在一起，
+                // 看不出哪句是真话。
+                .stream(true)
+                .onChunk(ChatExample::render)
                 // 策略：策略管「能不能调」，审批管「这次要不要人点头」——两件事分开。
                 .policy(ToolNamePolicy.unrestricted());
         if ("1".equals(System.getenv("MOS_NO_PATH_SCOPE"))) {
             builder.noPathScope();
         }
         return builder.build();
+    }
+
+    /**
+     * 增量渲染：思维链与正式回答分开输出。
+     *
+     * <p><b>为什么必须分开</b>：推理模型的思维链增量与正文增量走同一个回调，
+     * 只是 {@code reasoning} 标志不同。不区分就会把「草稿」当「答案」印给用户。
+     *
+     * @param chunk 增量块
+     */
+    public static void render(net.hegq.mos4j.model.StreamChunk chunk) {
+        if (chunk.reasoning() != null && !chunk.reasoning().isEmpty()) {
+            System.out.print("\u001b[90m" + chunk.reasoning() + "\u001b[0m");
+        }
+        if (chunk.delta() != null && !chunk.delta().isEmpty()) {
+            System.out.print(chunk.delta());
+        }
+        System.out.flush();
     }
 
     /**
@@ -134,6 +161,34 @@ public final class ChatExample {
                 .systemPrompt(SYSTEM_PROMPT)
                 .guards(guards())
                 .approvals(approvals)
+                .build();
+    }
+
+    /**
+     * 装配（流式；用例走这条，不碰网络，也不往 stdout 写）。
+     *
+     * <p>与主入口的区别只在「增量回调可注入」：主入口用 {@link #render} 直写终端，
+     * 用例需要把增量收起来断言。
+     *
+     * @param logDir    会话日志目录
+     * @param model     模型
+     * @param approvals 审批通道
+     * @param onChunk   增量回调
+     * @return 装好的门面
+     * @throws IOException 会话日志目录不可用
+     */
+    public static Mos4j assembleStreaming(Path logDir, ChatModel model, ApprovalChannel approvals,
+                                          java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk)
+            throws IOException {
+        return Mos4j.builder()
+                .model(model)
+                .logDir(logDir)
+                .noPathScope()
+                .systemPrompt(SYSTEM_PROMPT)
+                .guards(guards())
+                .approvals(approvals)
+                .stream(true)
+                .onChunk(onChunk)
                 .build();
     }
 

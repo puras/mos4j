@@ -37,6 +37,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class Mos4jProtocolKnobsTest {
 
+    /** 本用例收集到的增量（门面链路）。 */
+    private final List<StreamChunk> chunks = new ArrayList<>();
+
     /** 记录请求的假模型。 */
     private static final class RecordingModel implements ChatModel {
 
@@ -151,5 +154,62 @@ class Mos4jProtocolKnobsTest {
 
         assertTrue(mos4j.agent().describe().modelProvider().contains("Gemini"),
                 "应该装的是 Gemini 模型: " + mos4j.agent().describe().modelProvider());
+    }
+
+    @Test
+    void onChunkReachesTheDriverThroughTheFacade() throws Exception {
+        // 回归：门面的 stream(true) 已存在，但没有 onChunk 入口——
+        // 宿主只能开流式却拿不到任何增量（「有开关、没插座」）。
+        // 这里守的是整条链路：Mos4j.Builder.onChunk → Config → RunContext → 驱动。
+        Mos4j mos4j = Mos4j.builder()
+                .model(new StreamingRecordingModel())
+                .fileTools(false)
+                .stream(true)
+                .onChunk(chunks::add)
+                .logDir(tempDir().resolve("sessions"))
+                .env(Map.of())
+                .build();
+
+        mos4j.agent().run(new Session("s1", null), "干活");
+
+        assertEquals(List.of("甲", "乙"), chunks.stream().map(StreamChunk::delta).toList(),
+                "门面装的回调必须真的接到增量");
+    }
+
+    /** 会推增量的假模型（专用流式链路）。 */
+    private static final class StreamingRecordingModel implements ChatModel {
+
+        @Override
+        public Response chat(Request request) {
+            throw new AssertionError("stream(true) 时应走 chatStream");
+        }
+
+        @Override
+        public Response chat(Request request, CancellationToken cancellation) {
+            return chat(request);
+        }
+
+        @Override
+        public Response chatStream(Request request, StreamEmitter emitter) {
+            return chatStream(request, emitter, CancellationToken.none());
+        }
+
+        @Override
+        public Response chatStream(Request request, StreamEmitter emitter, CancellationToken cancellation) {
+            try {
+                emitter.emit(new StreamChunk("甲", null, null, null));
+                emitter.emit(new StreamChunk("乙", null, null, null));
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            return new Response(Message.assistant("甲乙"), null, "stop");
+        }
+
+        @Override
+        public Set<Capability> capabilities() {
+            return Set.of(Capability.STREAMING);
+        }
     }
 }

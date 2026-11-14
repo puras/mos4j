@@ -699,6 +699,9 @@ public final class Mos4j {
         public Builder concurrency(int n);               // 工具并发上限（缺省 0 = 驱动缺省）
         public Builder maxDecisionRounds(int n);         // 单轮决策次数上限（缺省 0 = 不限）
         public Builder stream(boolean b);                // 是否流式决策
+        // 流式增量回调：只在 stream(true) 时被调；每增量块一次；在调用线程上同步执行
+        // （阻塞会拖慢决策，耗时请自行转交）；不装 = 增量丢弃、链路照走。
+        public Builder onChunk(Consumer<StreamChunk> c);
         public Mos4j build() throws IOException;
 
     // 缺省模型装配口径公开：starter 与门面共用一份「协议 → 环境变量 → 默认地址」真相
@@ -724,6 +727,7 @@ public final class Mos4j {
 public class Mos4jProperties {
     // enabled(缺省 true) / protocol(缺省 OPENAI) / apiKey / baseUrl / model / systemPrompt
     // workspace / logDir / fileTools(缺省 true) / concurrency / maxDecisionRounds / stream
+    // （流式增量回调 onChunk 是宿主的代码，只能程序化装配，不走配置属性）
     // approvals.required(缺省 false) / output.* / compaction.*
 }
 

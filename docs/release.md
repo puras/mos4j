@@ -49,9 +49,9 @@ MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -am \
 # 4) 冻结清单：80 条 / 71 名 / 名字集合摘要 3d35911d…（由 FieldNameContractTest 守）
 ```
 
-**当前基线**（2026-11-09 SSRF 内嵌地址修复后实跑）：默认 reactor **913 通过 / 0 失败 / 0 错误 / 7 跳过**（109 个测试类）；
-`-Pstarter` **937 / 7**；`-Pexamples` **938 / 7**；`-Pexamples,mcp` **941 / 7**。
-（MCP 接入已并入 `mos4j-tool`，进入默认 reactor；examples 自身分别为 25 与 28 条。）
+**当前基线**（2026-11-14 流式出口与 Gemini 结构化输出后实跑）：默认 reactor **922 通过 / 0 失败 / 0 错误 / 7 跳过**（109 个测试类）；
+`-Pstarter` **946 / 7**；`-Pexamples` **948 / 7**；`-Pexamples,mcp` **951 / 7**。
+（MCP 接入已并入 `mos4j-tool`，进入默认 reactor；examples 自身分别为 26 与 29 条。）
 
 ## 4. 还缺什么（发布配置的缺口，需要人拍板）
 

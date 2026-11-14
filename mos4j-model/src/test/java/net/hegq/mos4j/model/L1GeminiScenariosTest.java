@@ -15,8 +15,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -250,6 +252,86 @@ class L1GeminiScenariosTest {
                         List.of(new net.hegq.mos4j.model.ContentPart("video", null, null, null, null)),
                         null, null, null, null)),
                 null, null, null, null, null, null)));
+    }
+
+    // ---------------------------------------------------------------- 结构化输出
+
+    @Test
+    void g_structuredOutput_jsonSchemaSendsMimeTypeAndSchema() throws IOException {
+        // 报文形状对齐 Go TestChat...（gemini_test.go 的 responseMimeType/responseSchema 断言）
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(new Request(
+                List.of(Message.user("描述")),
+                null, null, 64,
+                Request.ResponseFormat.jsonSchema("answer",
+                        Map.of("type", "object", "properties", Map.of("ok", Map.of("type", "boolean")))),
+                null, null));
+
+        JsonNode gc = JSON.readTree(server.lastRequestBody()).get("generationConfig");
+        assertEquals("application/json", gc.get("responseMimeType").asText(),
+                "json_schema 必须下发 responseMimeType");
+        JsonNode schema = gc.get("responseSchema");
+        assertEquals("object", schema.get("type").asText());
+        assertEquals("boolean", schema.get("properties").get("ok").get("type").asText());
+        assertEquals(64, gc.get("maxOutputTokens").asInt(), "采样参数不受影响");
+        // Gemini 协议没有「schema 名字」这个位：name 不发（Go 也不发）
+        assertFalse(gc.get("responseSchema").has("name"), "name 在 Gemini 侧无落点，不应自创字段");
+    }
+
+    @Test
+    void g_structuredOutput_jsonObjectSendsMimeTypeOnly() throws IOException {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(new Request(
+                List.of(Message.user("hi")),
+                null, null, null, Request.ResponseFormat.jsonObject(), null, null));
+
+        JsonNode gc = JSON.readTree(server.lastRequestBody()).get("generationConfig");
+        assertEquals("application/json", gc.get("responseMimeType").asText());
+        assertFalse(gc.has("responseSchema"),
+                "json_object 不带 schema（对齐 Go 的 case \"json_object\"）");
+    }
+
+    @Test
+    void g_structuredOutput_absentWhenNotRequested() throws IOException {
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(Request.ofUser("hi"));
+
+        JsonNode gc = JSON.readTree(server.lastRequestBody()).get("generationConfig");
+        assertFalse(gc.has("responseMimeType"), "没要求结构化就不该发 MIME 类型");
+        assertFalse(gc.has("responseSchema"));
+    }
+
+    @Test
+    void g_unsetSamplingParamsAreOmittedNotSentAsNull() throws IOException {
+        // 回归：Go 侧每个字段都是 omitempty，未设置则整个键不出现。
+        // 旧实现会发出 {"temperature":null,"maxOutputTokens":null}——
+        // 「给空值」与「没给」在协议上不等价
+        server.respondJson("""
+                {"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]},"finishReason":"STOP"}]}
+                """);
+
+        model.chat(Request.ofUser("hi"));
+
+        JsonNode gc = JSON.readTree(server.lastRequestBody()).get("generationConfig");
+        assertFalse(gc.has("temperature"), "未设 temperature 时不应出现该键（不能发 null）");
+        assertFalse(gc.has("maxOutputTokens"), "未设 maxTokens 时不应出现该键（不能发 null）");
+    }
+
+    @Test
+    void g_capabilityDeclarationsMatchWireImplementation() {
+        // 能力位是对外承诺：声明了 STRUCTURED_OUTPUT 就必须真的会下发 MIME 类型。
+        // Anthropic 曾因多报此位被登记为 GO-DIFF #19，Gemini 同类问题本轮修复
+        assertTrue(model.capabilities().contains(Capability.STRUCTURED_OUTPUT),
+                "Gemini 协议支持 responseMimeType/responseSchema，应声明 STRUCTURED_OUTPUT");
     }
 
     private static final ObjectMapper JSON = new ObjectMapper();

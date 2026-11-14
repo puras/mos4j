@@ -123,4 +123,25 @@ class ChatExampleTest {
         assertEquals(ApprovalOutcome.UNAVAILABLE.wire(), decided.approval().outcome(),
                 "不可用 ≠ 拒绝（两者在日志里必须分得清）");
     }
+
+    @Test
+    @DisplayName("流式：示例装的 onChunk 真能收到增量（装配不是摆设）")
+    void streamingRendersIncrements() throws Exception {
+        Path dir = tempDir();
+        StubModel model = StubModel.of(StubModel.text("一二三四"));
+        // 走 assemble 的流式重载（主入口用的就是这个）：证明示例里的
+        // stream(true) + onChunk(render) 不是写了不跑的装饰
+        List<String> seen = new ArrayList<>();
+        Mos4j mos4j = ChatExample.assembleStreaming(dir.resolve("sessions"), model,
+                request -> ApprovalResult.approved(), chunk -> {
+                    seen.add(chunk.delta() == null ? "" : chunk.delta());
+                    ChatExample.render(chunk);
+                });
+
+        String reply = mos4j.run("s1", "说四个字");
+
+        assertEquals("一二三四", reply, "最终答复不受流式影响");
+        assertEquals("一二三四", String.join("", seen), "增量拼起来应该等于完整回复");
+        assertTrue(seen.size() >= 2, "应该真的是多块，不是一次性吐完: " + seen);
+    }
 }

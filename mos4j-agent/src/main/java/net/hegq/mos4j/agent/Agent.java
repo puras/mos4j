@@ -177,6 +177,7 @@ public final class Agent implements AutoCloseable {
                 .compaction(config.compaction())
                 .compactionFailurePolicy(config.compactionFailurePolicy())
                 .onCompactionFailure(config.onCompactionFailure())
+                .onChunk(config.onChunk())
                 .outputLimiter(config.outputLimiter())
                 .skillTool(skillTool)
                 .build();

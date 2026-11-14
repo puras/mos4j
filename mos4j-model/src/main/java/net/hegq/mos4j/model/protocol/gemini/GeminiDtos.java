@@ -1,6 +1,7 @@
 package net.hegq.mos4j.model.protocol.gemini;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
@@ -121,7 +122,24 @@ final class GeminiDtos {
     record FunctionDeclaration(String name, String description, Map<String, Object> parameters) {
     }
 
-    /** 生成配置。 */
-    record GenerationConfig(Double temperature, @JsonProperty("maxOutputTokens") Integer maxOutputTokens) {
+    /**
+     * 生成配置。
+     *
+     * <p><b>为什么标 {@code NON_NULL}</b>：Go 侧每个字段都是 {@code omitempty}，
+     * 未设置就整个键不出现。Java 若把 {@code null} 序列化出去，出站是
+     * {@code {"temperature":null,"maxOutputTokens":null}}——「给了空值」与「没给」
+     * 在协议上不等价。只在确实有值时发这个键。
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record GenerationConfig(
+            Double temperature,
+            @JsonProperty("maxOutputTokens") Integer maxOutputTokens,
+            @JsonProperty("responseMimeType") String responseMimeType,
+            @JsonProperty("responseSchema") Map<String, Object> responseSchema) {
+
+        /** 只有采样参数（无结构化输出）的生成配置。 */
+        GenerationConfig(Double temperature, Integer maxOutputTokens) {
+            this(temperature, maxOutputTokens, null, null);
+        }
     }
 }

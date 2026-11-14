@@ -5,6 +5,7 @@ import net.hegq.mos4j.model.Capability;
 import net.hegq.mos4j.model.ChatModel;
 import net.hegq.mos4j.model.Request;
 import net.hegq.mos4j.model.Response;
+import net.hegq.mos4j.model.StreamChunk;
 import net.hegq.mos4j.model.StreamEmitter;
 import net.hegq.mos4j.model.Message;
 import net.hegq.mos4j.model.ToolCall;
@@ -119,12 +120,37 @@ public final class StubModel implements ChatModel {
 
     @Override
     public Response chatStream(Request request, StreamEmitter emitter) {
-        return chat(request, (CancellationToken) null);
+        return chatStream(request, emitter, CancellationToken.none());
     }
 
+    /**
+     * 流式：把这一步的最终文本拆成两段推给 emitter。
+     *
+     * <p><b>为什么不直接忽略 emitter</b>：示例里 {@code stream(true) + onChunk(render)}
+     * 是真被用到的（真实终端靠它实时出字）。替身不推增量，示例的流式渲染就无法用例验证——
+     * 「装配写了但从不被跑过」的代码最容易在真机上出问题。
+     *
+     * <p>推的是<b>聚合后的文本拆两半</b>，不是重放协议分片：这里守的是「增量能不能到达宿主」，
+     * 协议分片的正确性由 L1 语料用例守（那才是报文层的事）。
+     */
     @Override
     public Response chatStream(Request request, StreamEmitter emitter, CancellationToken cancellation) {
-        return chat(request, cancellation);
+        Response response = chat(request, cancellation);
+        String text = response.message() == null ? null : response.message().content();
+        if (emitter != null && text != null && !text.isEmpty()) {
+            int mid = text.length() / 2;
+            try {
+                if (mid > 0) {
+                    emitter.emit(new StreamChunk(text.substring(0, mid), null, null, null));
+                }
+                emitter.emit(new StreamChunk(text.substring(mid), null, null, null));
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return response;
     }
 
     @Override

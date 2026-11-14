@@ -308,6 +308,7 @@ public final class Mos4j {
         private CompactionService compaction;
         private net.hegq.mos4j.context.CompactionFailurePolicy compactionFailurePolicy;
         private java.util.function.Consumer<Throwable> onCompactionFailure;
+        private java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
         private Duration summaryTimeout;
         private boolean disableCompaction;
         private Path contextFileDir;
@@ -664,6 +665,23 @@ public final class Mos4j {
             return this;
         }
 
+        /**
+         * 装流式增量回调（缺省不装 = 增量丢弃）。
+         *
+         * <p><b>必须与 {@link #stream(boolean)} 一起用</b>：{@code stream(false)} 时
+         * 根本不会走流式链路，回调也不会被调用。
+         *
+         * <p>回调在<b>调用线程</b>上同步执行：回调里阻塞会拖慢本轮决策，
+         * 需要耗时处理时自己转交出去。
+         *
+         * @param onChunk 增量回调（可空 = 丢弃增量）
+         * @return this
+         */
+        public Builder onChunk(java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk) {
+            this.onChunk = onChunk;
+            return this;
+        }
+
         /** 环境快照（测试注入；生产从系统环境读）。 */
         Builder env(Map<String, String> env) {
             this.env = env;
@@ -992,6 +1010,7 @@ public final class Mos4j {
                     .compaction(effectiveCompaction)
                     .compactionFailurePolicy(compactionFailurePolicy)
                     .onCompactionFailure(onCompactionFailure)
+                    .onChunk(onChunk)
                     .maxTokens(maxTokens)
                     .policy(policy)
                     .paramPolicy(paramPolicy)

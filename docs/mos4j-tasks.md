@@ -764,4 +764,13 @@
   - **T18.3 修复**：`PublicAddresses` 重写——IPv4 分支补齐 `0/8` / TEST-NET 三段 / `224/4` 起整段；IPv6 分支补 ULA / 链路本地 / 组播，并新增 `isEmbeddedV4Form`（IPv4-mapped / NAT64 两前缀 / 6to4 / Teredo）一律拒。对齐 Go 的**可观测行为**而非注释意图（按意图判会放行 Go 拒掉的地址 = 放松安全边界）
   - **T18.4 测试补齐**：`publicAddressClassification` 改为 Go `TestIsPublicIP` 完整清单（23 private + 4 public，逐条同时验 `isPublic` 与 `allPublic`）；新增 `embeddedIpv4VariantsAreRejectedRegardlessOfInnerAddress`（含内嵌公网地址也拒 + IPv4-mapped 公网照放）。**修正旧文档 §3.11 声称已覆盖但实际未覆盖的偏差**
   - **T18.5 回归与文档**：`mos4j-tool` **359 / 0 / 0 / 0**；四套 **913/937/938/941**（+1 = 新增测试）；GO-DIFF #22 + #18 守护用例计数、CHANGELOG、REVIEW-SHEET、MCP-STATUS、release.md、INVARIANT-TESTS §3.11 同步
-- **本批不做**：**真实公网主机的端到端验收**（TLS / 反爬 / CDN 重定向均属未知，需真实网络）；**rebinding 真机对拍**（需恶意权威 DNS，登记 B25 / SI-22）；**Gemini `responseFormat`**（仍待环境）
+- **本批不做**：**真实公网主机的端到端验收**（TLS / 反爬 / CDN 重定向均属未知，需真实网络）；**rebinding 真机对拍**（需恶意权威 DNS，登记 B25 / SI-22）；~~**Gemini `responseFormat`**（仍待环境）~~ → 已在 T19 修复
+- [x] **T19 能力缺口补齐：流式出口 + Gemini 结构化输出**（2026-11-14）
+  - **T19.1 缺陷确认**：逐项对照 Go 参考实现，两类缺口均是「下层全通、宿主侧接不上」：
+    ① **流式出口断裂**——`RunContext.onChunk` 与 `ReActDriver.decide` 链路全通，但 `Config.Builder` / `Mos4j.Builder` 都没有 `onChunk(...)`，宿主能开 `stream(true)` 却拿不到任何增量（GO-DIFF #23）；
+    ② **Gemini 声明了 `STRUCTURED_OUTPUT` 却不下发 `responseMimeType`/`responseSchema`**，与 GO-DIFF #19（Anthropic 多报）同类；额外发现 `GenerationConfig` 把未设置字段序列化成 `null`（Go 全字段 `omitempty`），实测旧报文为 `{"temperature":null,"maxOutputTokens":null}`。
+  - **T19.2 流式接线**：`Config` 加 `onChunk` 字段/getter/Builder 方法；`Agent` 装配 `.onChunk(config.onChunk())`；`Mos4j.Builder` 加同名方法并链路到 `Config.Builder`。语义：只在 `stream(true)` 时被调；每增量块一次；调用线程同步执行；不装 = 增量丢弃。
+  - **T19.3 Gemini 结构化输出**：`GeminiDtos.GenerationConfig` 改 4 字段 record + `@JsonInclude(NON_NULL)`；`GeminiChatModel.generationConfigOf` 按 `responseFormat.type()` 映射（`json_schema` → MIME + schema；`json_object` → 只发 MIME；`name` 无落点、不下发），对齐 Go `gemini.go:207-211`。
+  - **T19.4 用例**：`L1GeminiScenariosTest` +5（出站报文断言）/ `ReActDriverTest` +3 / `Mos4jProtocolKnobsTest` +1（门面穿透）/ `ChatExampleTest` +1（示例级端到端），并让 `StubModel.chatStream` 真推增量。
+  - **T19.5 回归与文档**：四套 **922/946/948/951**（均为 0 失败 / 7 跳过）；GO-DIFF #23 新增 + #19 连带项更新、API.md 门面签名、CHANGELOG 已知边界、REVIEW-SHEET / MCP-STATUS / release.md 基线同步
+  - **本批不做**：与**真实 Gemini 服务**对括（离线报文断言已达；真实服务冒烟整体仍缺 API key）；Gemini 反向缺 `REASONING` 能力位（Go 自己也不发 `ReasoningEffort`，无行为可对齐）
