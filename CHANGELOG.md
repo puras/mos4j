@@ -102,11 +102,12 @@
 - 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（115 条判定项，**111 条待签**）。
 - 相对 Go 参考实现的 **16 项能力缺口已补齐**（2026-11-09 第四轮）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
 - **Gemini `responseFormat` 未实现**（协议支持 `responseMimeType` / `responseSchema`，Java 仅传 temperature / maxTokens）：需要真实 Gemini 接口环境验证，已确认缺口并暂缓。
-- **`web_fetch` 未对真实公网主机做端到端验收**：传输层已用本地真 socket 端到端跑通（chunked / gzip / 上限 / 重定向），但真实站点的 TLS 链接、反爬拦截、重定向到 CDN 等场景仍属未知。
+- **`web_fetch` 的真实公网验收已完成**（2026-11-09）：本机实测 `https://example.com/` 200 `text/html; charset=utf-8`（title=Example Domain）、`http://example.com/` 200、`httpbin.org/status/404` → 404 当结果、`httpbin.org/gzip` gzip 正常解、跨源重定向拒绝、`http://127.0.0.1:1/` 拒绝内网（均为预期）。Wikipedia 超时系**本机 DNS 污染**（`curl` 同样超时、`dig` 得 `31.13.88.169` / `2001::1`），不是代码缺陷。仍未验的：反爬拦截、重定向到 CDN、需客户端证书的站点。
+- **本轮由真实公网验收发现的真安全缺陷已修**：`PublicAddresses.isPublic` 当时放行 NAT64（`64:ff9b::7f00:1`）/ 6to4（`2002:7f00:1::`）/ Teredo（`2001::1:2:3:4`）与 TEST-NET、`0/8`、`224/4` 起整段——是**真实可用的 SSRF 绕过**（实例：本机 DNS 给 `en.wikipedia.org` 返回 `2001::1`，整条解析结果被当公网）。现按 Go `TestIsPublicIP` 完整清单（23 private + 4 public）逐条断言；内嵌 IPv4 一律拒（GO-DIFF #22）。
 
 ### 机械门基线
 
-- 默认 reactor **912 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，109 个测试类）；`-Pstarter` **936 / 7**；`-Pexamples` **937 / 7**（示例自身 25 条）；`-Pexamples,mcp` **940 / 7**（示例自身 28 条）。
+- 默认 reactor **913 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，109 个测试类）；`-Pstarter` **937 / 7**；`-Pexamples` **938 / 7**（示例自身 25 条）；`-Pexamples,mcp` **941 / 7**（示例自身 28 条）。
 - 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
 
 ---
@@ -192,9 +193,10 @@
 - 新增 `HtmlText`（包内可见）：标题提取、四类块级/脚本块处理、十项命名实体 + 十进制/十六进制数值实体、两趟解码、逐行压空白；六条正则逐字移植 Go，用 RE2J（C6 禁 `java.util.regex`）。
 - **期望值用真 Go 产出**：本机 `go1.27.0` 跑参考实现（`.j7log2/htmlref/`），发现 3 处自写期望错，`HtmlText` 实现本身零修改。
 - **两处有意偏离 Go**（登记 GO-DIFF #20 / #21）：Go 的十六进制实体解码因去前缀漏字符**从不生效**（`&#x41;` 原样输出），Java 按意图解；Go 对代理对码点输出 U+FFFD，Java 保留实体原文。
+- **一处对齐 Go 可观测行为而非注释意图**（GO-DIFF #22）：Go 的四个内嵌 IPv4 分支实际永远返回 false（`embeddedIPv4` 返 16 字节 → `v4[0]==0` 必中），所以 NAT64 / 6to4 / Teredo **一律拒**；Java 同结论，不按内嵌地址放行。
 
 ### 测试
 
 - `PinnedConnectorTransportTest`（**22 条，真 socket**）：出站报文与 Host / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与码点双上限 / 404 / 三类非文本与缺 Content-Type / 同源与跨源重定向 / 跳数上限 / 注入解析器仍拦私网 / 非 HTTP 响应。
-- `PinnedConnectorTest` 8 / `HtmlTextTest` 9 / `WebToolsTest` 22（search 9 + fetch 13）。
-- `mos4j-tool` **315 → 358**；四套基线 **869/893/894/897 → 912/936/937/940**。
+- `PinnedConnectorTest` **9** / `HtmlTextTest` 9 / `WebToolsTest` 22（search 9 + fetch 13）。
+- `mos4j-tool` **315 → 358 → 359**；四套基线 **869/893/894/897 → 912/936/937/940 → 913/937/938/941**。

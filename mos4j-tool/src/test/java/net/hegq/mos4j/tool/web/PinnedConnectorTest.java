@@ -124,21 +124,57 @@ class PinnedConnectorTest {
     }
 
     @Test
-    @DisplayName("公网判定：私有段 / 回环 / 链路本地 / CGNAT / ULA 都不是公网")
+    @DisplayName("公网判定：逐个地址对齐 Go TestIsPublicIP 的完整清单")
     void publicAddressClassification() throws Exception {
+        // 清单逐字抄自 Go fetch_test.go 的 TestIsPublicIP。
+        // 注意其中「IPv6 里内嵌 IPv4」那一组（::ffff / 64:ff9b / 2002 / 2001::）——
+        // JDK 自带的 isSiteLocalAddress 之类完全不管这一片，曾因此放过 NAT64 与 6to4 绕过。
         for (String blocked : new String[]{
-                "127.0.0.1", "10.1.2.3", "172.16.0.1", "192.168.1.1",
-                "169.254.169.254", "100.64.0.1", "0.0.0.0", "224.0.0.1",
-                "198.18.0.1", "192.0.0.1", "::1", "fc00::1", "fe80::1"}) {
-            assertFalse(PublicAddresses.isPublic(InetAddress.getByName(blocked)),
-                    blocked + " 不该被判为公网");
+                // IPv4 保留段
+                "0.0.0.0", "10.1.2.3", "100.64.0.1", "127.0.0.1", "169.254.169.254",
+                "172.16.0.1", "192.0.0.1", "192.0.2.1", "192.168.0.1", "198.18.0.1",
+                "198.51.100.1", "203.0.113.1", "224.0.0.1", "255.255.255.255",
+                // IPv6 基础保留段
+                "::", "::1", "fc00::1", "fe80::1", "ff02::1",
+                // IPv6 内嵌 IPv4 的四种变体（NAT64 / 6to4 / Teredo）
+                "::ffff:127.0.0.1", "64:ff9b::7f00:1", "2002:7f00:1::", "2001::1:2:3:4"}) {
+            InetAddress address = InetAddress.getByName(blocked);
+            assertFalse(PublicAddresses.isPublic(address), blocked + " 不该被判为公网");
+            assertFalse(PublicAddresses.allPublic(java.util.List.of(address)),
+                    blocked + " 出现在解析结果里就该整体拒绝");
         }
-        for (String allowed : new String[]{"8.8.8.8", "1.1.1.1", "2606:4700::1111"}) {
+        for (String allowed : new String[]{
+                "1.1.1.1", "8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"}) {
             assertTrue(PublicAddresses.isPublic(InetAddress.getByName(allowed)),
                     allowed + " 该被判为公网");
         }
         assertFalse(PublicAddresses.allPublic(null));
         assertFalse(PublicAddresses.allPublic(java.util.List.of()));
+        assertFalse(PublicAddresses.isPublic(null));
+    }
+
+    @Test
+    @DisplayName("内嵌 IPv4 的 IPv6：不论内嵌什么地址一律拒（对齐 Go 的可观测行为）")
+    void embeddedIpv4VariantsAreRejectedRegardlessOfInnerAddress() throws Exception {
+        // 这些地址在支持相应转换的网络里会打到内嵌的 IPv4 目标，所以必须拒。
+        // 注意：内嵌的是公网地址（8.8.8.8）也一律拒——不是“判内嵌地址”，而是整类拒，
+        // 原因见 PublicAddresses 类注释与 GO-DIFF #22（用真 Go 代码实测得到）。
+        for (String blocked : new String[]{
+                "64:ff9b::7f00:1",        // NAT64 内嵌 127.0.0.1
+                "64:ff9b::808:808",       // NAT64 内嵌 8.8.8.8（公网也拒）
+                "64:ff9b:1::a00:1",       // NAT64 本地前缀内嵌 10.0.0.1
+                "2002:7f00:1::",          // 6to4 内嵌 127.0.0.1
+                "2002:c0a8:101::",        // 6to4 内嵌 192.168.1.1
+                "2002:808:808::",         // 6to4 内嵌 8.8.8.8（公网也拒）
+                "2001::1:2:3:4",          // Teredo（Go 测试清单原用例）
+                "2001::a00:1"}) {         // Teredo 内嵌 10.0.0.1（字节异或 0xFF）
+            assertFalse(PublicAddresses.isPublic(InetAddress.getByName(blocked)),
+                    blocked + " 属内嵌 IPv4 形式，该拒");
+        }
+        // IPv4-mapped 在 Java 里直接折成 IPv4 地址（长度 4），仍然被拒
+        assertFalse(PublicAddresses.isPublic(InetAddress.getByName("::ffff:127.0.0.1")));
+        assertTrue(PublicAddresses.isPublic(InetAddress.getByName("::ffff:8.8.8.8")),
+                "IPv4-mapped 公网地址跟它内嵌的 IPv4 同结论（Go 也是 true）");
     }
 
     @Test

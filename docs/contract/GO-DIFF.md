@@ -53,6 +53,7 @@
 | #19 | Anthropic 能力位多报 `STRUCTURED_OUTPUT` | 能力位失实 | ✅ 已对齐（删 `STRUCTURED_OUTPUT`；`REASONING` 保留为**欠报**对位） |
 | #20 | Go 的十六进制实体解码事实上从不生效（`ParseInt("x41")` 必失败） | Go 实现瑕疵 | ⚠️ Java 按意图解（见 §3 #20） |
 | #21 | Go 的代理对码点解码静默变成 U+FFFD | Go 实现口径 | ⚠️ Java 原样保留实体（见 §3 #21） |
+| #22 | Go 的「内嵌 IPv4 的 IPv6 也按 IPv4 判」事实上是死代码（`embeddedIPv4` 返回 16 字节 → `isPublicIPv4` 首条 `v4[0]==0` 必中） | Go 实现瑕疵 | ⚠️ Java 对齐**可观测行为**（一律拒），不对齐注释意图（见 §3 #22） |
 
 > **编号说明**：#1–#10 是 2026-11-07 第一轮初查的编号；#11–#13 是同日逐行复核新增；#14 已在 SI-15 登记。
 > **#15 / #16 是 2026-11-08 第三次复核（出站报文抓包）发现的真缺口**：两者都是「声明了但没做到」，
@@ -203,7 +204,8 @@
 - **HTML 抓取侧清洗**：`HtmlText`（`title` / `toText` / `decodeEntities`）逐字移植 Go 的六条正则与十项实体表，正则用 RE2J（C6 禁 `java.util.regex`）。
 - **破坏性变更（第二次）**：`Fetcher.fetch` 从 `fetch(FetchRequest)` 改成 `fetch(String, FetchLimits)`；删 `lastReadTruncated()`（`FetchResult.truncated` 已足够，Go 接口也只有两个方法）；删 `WebFetchTool.FetchRequest`、密封 `WebFetchTool.FetchResult`、`DEFAULT_MAX_BYTES` / `MAX_REDIRECTS` / `MAX_URL_LENGTH` / `DEFAULT_TIMEOUT`（全部归到 `FetchLimits` / `FetchResult` / `PinnedConnector`）。
 - **错误文案与检查顺序逐字对齐 Go**：`url` 空 → `url 不能为空`（**无** `web_fetch 失败: ` 前缀）；后端未装配 → `web_fetch 未装配抓取后端（宿主注入 Fetcher 后才可用）`；两句都在**执行期**且 `url` 检查在前；只有后端抛错才包 `web_fetch 失败: ` 前缀。
-- **守护用例**：`WebToolsTest` **22 条**（search 9 + fetch 13：回执 6 键全 / 404 是结果 / 空值不省略 / 字符与码点双截断 / 自定义后端可绕开公网校验 / 后端异常包成工具错误 / 四类私网拒绝 / URL 拒绝 / 两句执行期文案与优先级）；`PinnedConnectorTest` 8 条（内容类型归类 / 同源 / URL 校验 / 公网地址 / 上限归一化 / UA）；`PinnedConnectorTransportTest` 22 条（真 socket：出站报文 / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与字符上限 / 404 / 三类内容类型守卫 / 同源与跨源重定向 / 跳数上限 / 缺 Location / 注入解析器仍过公网校验 / 解析失败 / 非 HTTP 响应）；`HtmlTextTest` 9 条。
+- **守护用例**：`WebToolsTest` **22 条**（search 9 + fetch 13：回执 6 键全 / 404 是结果 / 空值不省略 / 字符与码点双截断 / 自定义后端可绕开公网校验 / 后端异常包成工具错误 / 四类私网拒绝 / URL 拒绝 / 两句执行期文案与优先级）；`PinnedConnectorTest` **9 条**（内容类型归类 / 同源 / URL 校验 / 公网地址完整清单 / 内嵌 IPv4 一律拒 / 上限归一化 / UA）；`PinnedConnectorTransportTest` 22 条（真 socket：出站报文 / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与字符上限 / 404 / 三类内容类型守卫 / 同源与跨源重定向 / 跳数上限 / 缺 Location / 注入解析器仍过公网校验 / 解析失败 / 非 HTTP 响应）；`HtmlTextTest` 9 条。
+- **公网判定清单逐字对齐 Go `TestIsPublicIP`**（2026-11-09 第五轮复核补）：Java 原来只覆盖 13 条私有地址 + 3 条公网地址，漏了 TEST-NET（`192.0.2/24` / `198.51.100/24` / `203.0.113/24`）、`0/8`、`224/4` 起整段、`255.255.255.255`，以及 IPv6 内嵌 IPv4 的四种变体——**实测确认 NAT64（`64:ff9b::7f00:1`）/ 6to4（`2002:7f00:1::`）/ Teredo（`2001::1:2:3:4`）当时全部被判为公网**，是可用的 SSRF 绕过。现按 Go 完整清单（23 private + 4 public）逐条断言。
 
 ### #20 Go 的十六进制实体解码事实上从不生效
 
@@ -221,6 +223,22 @@
 - **Java 落点**：`HtmlText.parseCodePoint` 拒代理区，实体**原样保留**（`&#xD800;` 不变）。
 - **为什么偏离**：U+FFFD 是「已经坏了，但假装读到了字符」；保留实体至少提示「这里有个我们没解的东西」，也避免产出非法 UTF-16 序列。方向是更保守，不是更激进。
 - **守护用例**：`HtmlTextTest.surrogateCodePointsKeepTheEntity`（`&#xD800;` / `&#55296;` / `&#xDFFF;` 均原样）。
+
+### #22 Go 的「内嵌 IPv4 的 IPv6 也按 IPv4 判」事实上是死代码
+
+- **Go 注释的意图**（`tool/web/fetch.go` 的 `isPublicIPv6`）：「IPv6 里的内嵌 IPv4（IPv4-mapped / NAT64 / 6to4 / Teredo）也按 IPv4 判」——四个分支各自抽出内嵌 IPv4 再调用 `isPublicIPv4`。
+- **Go 实际行为**：`embeddedIPv4` 返回 `net.IPv4(...)`，那是 **16 字节**形式（前面 12 字节是 `00…00 ff ff`），交给 `isPublicIPv4` 后第一条 `v4[0] == 0` 必然命中，于是**四个分支永远返回 false**。
+- **实测证据**（`.j7log2/goreal/`：直接复制 Go 的 `fetch.go` 改包名后调用）：
+  - `64:ff9b::808:808`（NAT64 内嵌 **8.8.8.8**，公网）→ `public=false`；
+  - `2002:808:808::`（6to4 内嵌 8.8.8.8）→ `public=false`；
+  - `embeddedIPv4(64:ff9b::808:808, 96)` 返回 `[0 0 0 0 0 0 0 0 0 0 255 255 8 8 8 8]`（`len=16`，`String()` 显示 `"8.8.8.8"`），`isPublicIPv4(embedded) = false`。
+  - 只有 IPv4-mapped（`::ffff:8.8.8.8`）例外——它被 `ip.To4()` 先折成 4 字节，根本不走内嵌分支。
+- **可观测结论**：Go 对 NAT64 / 6to4 / Teredo **一律拒**，与内嵌什么地址无关。
+- **Java 落点**：`PublicAddresses.isEmbeddedV4Form` 只判前缀、**不抽内嵌地址再判**，直接返回「不是公网」。
+- **为什么对齐行为而不对齐意图**：按意图判内嵌地址会**放行 Go 拒掉的地址**（如 `64:ff9b::808:808`）——安全边界只能收紧不能放松，尤其在 SSRF 防线上。「判得比参考实现更宽」需要单独的安全评审，不属 Bug 修复范围。
+- **代价**：只跑 NAT64 的纯 IPv6 网络枠不到网页（与 Go 同样的局限，属设计取舍而非回归）。
+- **与 #20 / #21 的区别**：#20 / #21 是 Java 故意偏离（Go 的行为会产出无意义结果）；本条是 Java **对齐** Go 的可观测结果，只是不跟随它注释里的意图。
+- **守护用例**：`PinnedConnectorTest.publicAddressClassification`（Go 完整清单 23 private + 4 public）与 `embeddedIpv4VariantsAreRejectedRegardlessOfInnerAddress`（含内嵌公网地址的 `64:ff9b::808:808` / `2002:808:808::` 也拒）。
 
 ### #19 Anthropic 能力位多报 `STRUCTURED_OUTPUT`
 

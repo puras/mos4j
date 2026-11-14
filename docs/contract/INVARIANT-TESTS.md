@@ -448,7 +448,7 @@ Go 的一步式反而不能显式激活没搜到的工具。
 | 项 | Go 侧原测试名（逐字抄录） | Go 行为 | Java 对应用例 |
 |---|---|---|---|
 | 拒绝私网地址 | `tool/web/fetch_test.go` 的 `TestFetchRejectsPrivateAddresses` | `staticResolver` 谎报地址 + `dialTo` 指本地；私网一律拒 | `PinnedConnectorTest.resolveRejectsNonPublicAddresses`、`PinnedConnectorTransportTest.injectedResolverStillEnforcesPublicAddresses` |
-| 公网判定边界 | 同文件 `TestIsPublicIP`（含 `::ffff:127.0.0.1` / `64:ff9b::7f00:1` / `2002:7f00:1::` / `2001::1:2:3:4`） | 映射伪装、NAT64、6to4、Teredo 全拒 | `PinnedConnectorTest.publicAddressClassification` |
+| 公网判定边界 | 同文件 `TestIsPublicIP`（**完整清单 23 private + 4 public**，含 `::ffff:127.0.0.1` / `64:ff9b::7f00:1` / `2002:7f00:1::` / `2001::1:2:3:4`；另有 TEST-NET 三段 / `0/8` / `255.255.255.255`） | 映射伪装、NAT64、6to4、Teredo 全拒（**且不论内嵌何地址——Go 实际行为如此，见 GO-DIFF #22**） | `PinnedConnectorTest.publicAddressClassification`（逐条同时验 `isPublic` 与 `allPublic`）、`embeddedIpv4VariantsAreRejectedRegardlessOfInnerAddress` |
 | URL 校验 | 同文件 `TestValidateURL` | 空 / 超长 / 非 http(s) / 内嵌凭据 / 缺主机 | `PinnedConnectorTest.urlValidation` |
 | 同源重定向 | `TestFetchFollowsSameOriginRedirect`（跳转后缀 `/final`）与 `TestFetchRefusesCrossOriginRedirect` | 同源跟、跨源拒 | `PinnedConnectorTransportTest.followsSameOriginRedirect` / `refusesCrossOriginRedirect` |
 | 非文本内容类型 | `TestFetchRejectsUnsupportedContentType` | 非文本响亮失败 | `PinnedConnectorTransportTest.rejectsBinaryContentType` / `rejectsMissingContentType` |

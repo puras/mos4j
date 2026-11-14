@@ -26,7 +26,7 @@ grep / glob / ls / current_time / grant_access 五个内置工具可用；
 | mos4j-tool | `searchtools/Bm25Index.java` | BM25 k1=1.2 b=0.75；camelCase 分词 + 词干 + 停用词 + **CJK bigram** |
 | mos4j-tool | `searchtools/DeferredToolCatalog.java` | 登记名字+说明；activate 改激活集；未知名忽略；已激活幂等 |
 | mos4j-tool | `searchtools/ToolSearchTool.java` / `ActivateTool.java` | 模型侧两个入口 |
-| mos4j-tool | `web/PublicAddresses.java` | SSRF 防线二：公网判定（回环/内网/链路本地/CGNAT/ULA/IPv4 映射伪装全拒） |
+| mos4j-tool | `web/PublicAddresses.java` | SSRF 防线二：公网判定（逐字节移植 Go `isPublicIPv4`/`isPublicIPv6`：IPv4 保留段 14 类 + IPv6 含 ULA/链路本地/组播 + **四类内嵌 IPv4 形式一律拒**，GO-DIFF #22） |
 | mos4j-tool | `web/PinnedConnector.java` | **缺省后端**：五条防线全在这里（URL 校验 / 公网校验 / 裸 Socket 钉住 / 同源重定向 / 5MB + 10 万字符 + 30s 上限），另带内容归类与 HTML 清洗 |
 | mos4j-tool | `web/WebFetchTool.java` | **工具面**：只做参数校验 / 字符截断 / 6 键回执——**不做地址判定**（防线下沉到后端，GO-DIFF #18） |
 | mos4j-tool | `web/HtmlText.java` | HTML → 纯文本 + 标题（六条正则逐字移植 Go，RE2J；GO-DIFF #20/#21 两处有意偏离） |
@@ -48,7 +48,7 @@ grep / glob / ls / current_time / grant_access 五个内置工具可用；
 | T5.6 tool_search | ✅ | `DeferredToolsTest`（BM25 3 条：排序 / CJK bigram / 分词+词干+停用词） |
 | T5.7 Registry deferred | ✅ | `DeferredToolsTest`（5 条：登记不进清单+自动注册辅助工具 / activate 未知名 / 历史并入 / 重名 fail-closed / 空集不注册）+ `DeferredFlowTest`（2 条：下一轮生效 / 历史并入执行） |
 | T5.8 web_search | ✅ | `WebToolsTest`（9 条 search：归一化+不可信标注 / 结构化回执逐字段 / 多查询并行去重 / `query` 单条容错 / `queries` 校验空+超 4 条 / `limit` 钳制 8 / provider 异常=工具错误 / 部分失败进 note / 全部失败=错误） |
-| T5.9 web_fetch | ✅ | `WebToolsTest`（**13 条** fetch：回环/内网/IPv4 映射/链路本地拒 + URL 拒绝成工具错误 + 自备 `Fetcher` 可绕开防线 + 两句执行期文案与优先级 + 后端异常成工具错误 + 回执 6 键 / 404 是结果 / 空值不省略 / 字符截断 / 码点截断）+ `PinnedConnectorTest`（8 条判定层）+ `PinnedConnectorTransportTest`（22 条真 socket 传输层）+ `HtmlTextTest`（9 条）+ `ToolContractTest`（schema） |
+| T5.9 web_fetch | ✅ | `WebToolsTest`（**13 条** fetch：回环/内网/IPv4 映射/链路本地拒 + URL 拒绝成工具错误 + 自备 `Fetcher` 可绕开防线 + 两句执行期文案与优先级 + 后端异常成工具错误 + 回执 6 键 / 404 是结果 / 空值不省略 / 字符截断 / 码点截断）+ `PinnedConnectorTest`（**9** 条判定层，含 Go `TestIsPublicIP` 完整清单 23 private + 4 public）+ `PinnedConnectorTransportTest`（22 条真 socket 传输层）+ `HtmlTextTest`（9 条）+ `ToolContractTest`（schema） |
 | T5.10 Guideline | ✅ | 同上（聚合渲染稳定 / 空规范空串） |
 
 ## 场景覆盖（真实计数）
