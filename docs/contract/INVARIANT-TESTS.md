@@ -76,7 +76,7 @@ Go 侧清单来自**两个证据交叉**：① `Name() string` 实现的穷举�
 | 9 | `grant_access` | `tool/builtin/grant.go:47` | `grant_access` | `tool/builtin/GrantAccessTool.java:26` | ✅ 名称一致；**参数形状有意不同**（B13-4，见 §3.2） |
 | 10 | `tool_search` | `tool/searchtools/searchtools.go:24` | `tool_search` | `tool/searchtools/ToolSearchTool.java:19` | ✅ 名称与参数名一致（B13-2：`topK`→`limit`）；**语义有意不同**（B13-5，见 §3.3） |
 | 11 | `web_search` | `tool/web/web.go:70` | `web_search` | `tool/web/WebSearchTool.java` | ✅ 名称一致；**形状已对齐**（GO-DIFF #17：`queries[]` / `query` / `limit` 缺省 8 + 结构化回执） |
-| 12 | `web_fetch` | `tool/web/web.go:229` | `web_fetch` | `tool/web/WebFetchTool.java` | ✅ 名称一致；**形状已对齐**（GO-DIFF #18：抓取后端 `Fetcher` 可注入） |
+| 12 | `web_fetch` | `tool/web/web.go:229` | `web_fetch` | `tool/web/WebFetchTool.java` | ✅ 名称一致；**形状与分层已对齐**（GO-DIFF #18：`Fetcher` 可注入，防线全在缺省后端的 `PinnedConnector`；回执 6 键固定；非 2xx 是结果） |
 | 13 | `skill` | `agent/skill/tool.go:13`（`mos.go:415` 注册） | `skill` | `tool/skill/SkillTool.java` | ✅ 名称与参数一致（J7 已补齐；两边都是条件注册：只有存在模型可见技能才注册） |
 | — | — | — | `activate` | `tool/searchtools/ActivateTool.java:19` | ⚠️ **Java 有 / Go 无**（Go 的激活并入 `tool_search`，见 §3.3；B13-5 记为有意差异） |
 
@@ -440,13 +440,35 @@ Go 的一步式反而不能显式激活没搜到的工具。
 > `toContentValue` 的 `default` 分支发空壳，三者都在**序列化边界**上，单测拿着内部对象看不出来。
 > 结论写进 §4 待补事项：**新增字段 / 新增分支必须断言出站报文**。
 
+### 3.11 web_fetch 的原测试名对位（#18 / #20 / #21，2026-11-09 第五轮）
+
+> 本批与 §3.10 的区别：发现手段是**跑 Go 参考实现取真实输出**（`.j7log2/htmlref/`，go1.27.0），
+> 而不是读测试名——HTML 两个差异（#20 / #21）就是真 Go 跑出来的。
+
+| 项 | Go 侧原测试名（逐字抄录） | Go 行为 | Java 对应用例 |
+|---|---|---|---|
+| 拒绝私网地址 | `tool/web/fetch_test.go` 的 `TestFetchRejectsPrivateAddresses` | `staticResolver` 谎报地址 + `dialTo` 指本地；私网一律拒 | `PinnedConnectorTest.resolveRejectsNonPublicAddresses`、`PinnedConnectorTransportTest.injectedResolverStillEnforcesPublicAddresses` |
+| 公网判定边界 | 同文件 `TestIsPublicIP`（含 `::ffff:127.0.0.1` / `64:ff9b::7f00:1` / `2002:7f00:1::` / `2001::1:2:3:4`） | 映射伪装、NAT64、6to4、Teredo 全拒 | `PinnedConnectorTest.publicAddressClassification` |
+| URL 校验 | 同文件 `TestValidateURL` | 空 / 超长 / 非 http(s) / 内嵌凭据 / 缺主机 | `PinnedConnectorTest.urlValidation` |
+| 同源重定向 | `TestFetchFollowsSameOriginRedirect`（跳转后缀 `/final`）与 `TestFetchRefusesCrossOriginRedirect` | 同源跟、跨源拒 | `PinnedConnectorTransportTest.followsSameOriginRedirect` / `refusesCrossOriginRedirect` |
+| 非文本内容类型 | `TestFetchRejectsUnsupportedContentType` | 非文本响亮失败 | `PinnedConnectorTransportTest.rejectsBinaryContentType` / `rejectsMissingContentType` |
+| 非 2xx 是结果 | `fetch_test.go:212-213`（404 断言） | 404 正常返回结果 | `PinnedConnectorTransportTest.non2xxIsAResultNotAnError` |
+| 十六进制实体（**有意差异**） | `fetch.go` 的 `htmlHexEnt`（无专项测试） | `&#x41;` **原样输出**（`ParseInt("x41")` 恒失败） | `HtmlTextTest.hexEntitiesAreDecoded`（按意图解，GO-DIFF #20） |
+| 代理对码点（**有意差异**） | `fetch.go` 的 `htmlNumEnt`（无专项测试） | `&#55296;` → U+FFFD | `HtmlTextTest.surrogateCodePointsKeepTheEntity`（保留实体，GO-DIFF #21） |
+| HTML → 纯文本 / 标题 | `fetch.go` 的 `htmlToText` / `extractTitle` / `decodeEntities`（无专项测试） | 脚本块→单空格；块级→`\n`；标签→空格；两趟解实体；逐行压空白；title 非块级 | `HtmlTextTest.htmlToTextMatchesGo` / `keepsBlockStructure` / `dropsScriptLikeBlocks` / `titleExtraction` / `entities` / `decodesInTwoPasses`（期望值均为真 Go 输出） |
+
+> **为何发现#20 / #21**：本轮不再手写期望值，而是把 Go 的 `htmlToText` / `extractTitle` / `decodeEntities` 原函数
+> 与一批边界输入放到 `.j7log2/htmlref/` 真跑。结果出来才知道：`HtmlTextTest` 首版 4 条失败**全是自己写错的期望值**，
+> 实现一行未改；同时暴露出 Go 两个真实的实体解码瑕疵。
+> 结论写进 §4：**能跑参考实现就别猜。**
+
 ---
 
 ## 4. 待补事项（诚实清单）
 
 | 项 | 状态 | 怎么补 |
 |---|---|---|
-| Go 侧原测试名逐条抄录 | ✅ 已完成（2026-11-06，Go 只读授权后）；**本批新增机制的原测试名已补抄**（§3.7）；**#5/#7/#9 差异批的原测试名已补抄**（§3.8）；**#1/#2/#3/#4/#6/#8/#10/#11/#12/#13 差异批的原测试名已补抄**（§3.9） | 复核命令：`grep -rn "^func Test" <Go 包>` |
+| Go 侧原测试名逐条抄录 | ✅ 已完成（2026-11-06，Go 只读授权后）；**本批新增机制的原测试名已补抄**（§3.7）；**#5/#7/#9 差异批的原测试名已补抄**（§3.8）；**#1/#2/#3/#4/#6/#8/#10/#11/#12/#13 差异批的原测试名已补抄**（§3.9）；**#18/#20/#21 的原测试名已补抄**（§3.11） | 复核命令：`grep -rn "^func Test" <Go 包>` |
 | **Go↔Java 差异的补齐**（13 项） | ✅ **已全部补齐**（2026-11-08）：生产代码 + 定向用例 + 文档登记（[`GO-DIFF.md`](GO-DIFF.md) §2 全绿表 / [`API.md`](API.md) §3.15 / [`SELF-INVENTED.md`](SELF-INVENTED.md) SI-43…SI-51） | 守护用例见 §3.9；**剩余**：人工逐行签字（§4 最后一行）+ 跨语言回放（不是机器能替代的） |
 | **examples 的独立构建与依赖纪律** | ✅ **已验证**（2026-11-08）：`-Pexamples clean verify` 与 `-Pmcp -Pexamples clean verify` 均 BUILD SUCCESS；examples 用例 **28 条** + `StubModelTest` **5 条** 全绿；8 个模块的 `dependency:analyze` **无告警** | 命令：`./mvnw -Pmcp -Pexamples -pl examples/testkit,examples/minimal,examples/chat,examples/agents,examples/skills,examples/subagent,examples/recovery,examples/mcp -am dependency:analyze`；踩坑：testkit 的脚本用完会抛 `IllegalStateException`（不是 `IndexOutOfBoundsException`） |
 | 工具名与 Go 侧 builtin 的逐字对照 | ✅ 已核对（**Go 13 / Java 14 全集**：`skill` 条件注册，不是抽样） | 差异见 §3.1；参数差异见 §3.2 |

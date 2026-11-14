@@ -75,7 +75,7 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
 
 **当前基线**（2026-11-08 六模块合并后实跑）：MCP 相关测试 **71 条全绿**（13 个测试类，
 分布在 `mos4j-tool` 与 `mos4j-agent`）；6 个 SDK 模块 `dependency:analyze` 全 `No dependency problems found`；
-四套 reactor（2026-11-09 web 工具与能力位对齐后复跑）：默认 **869 / 0 / 0 / 7**、含 starter **893 / 0 / 0 / 7**、`-Pexamples` **894 / 0 / 0 / 7**、`-Pexamples,mcp` **897 / 0 / 0 / 7**。
+四套 reactor（2026-11-09 web_fetch 分层重做后复跑）：默认 **912 / 0 / 0 / 7**、含 starter **936 / 0 / 0 / 7**、`-Pexamples` **937 / 0 / 0 / 7**、`-Pexamples,mcp` **940 / 0 / 0 / 7**。
 
 ## 2.1 M3 批次（已落地）
 

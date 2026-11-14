@@ -12,7 +12,7 @@
 - **J2 安全纵深**：双轨制（Hook / Guard 分离）、载荷冻结、审批四档（含 `UNAVAILABLE`）、审计事件不进投影。
 - **J3 文件与沙箱**：文件 jail（词法 + Realpath 双校验）、写前观察门（read-before-write）、命令沙箱、Describe 边界快照。
 - **J4 上下文工程**：输出限流（行/字节双限 + 定向保留）、截断落盘逃生通道、压缩（两段式 token 估算）、提示词分节装配。
-- **J5 工具面**：`grep` / `glob` / `ls` / `current_time` / `grant_access` / `tool_search` + `activate`（延后加载）/ `web_search` / `web_fetch`（SSRF 四条防线）。
+- **J5 工具面**：`grep` / `glob` / `ls` / `current_time` / `grant_access` / `tool_search` + `activate`（延后加载）/ `web_search` / `web_fetch`（SSRF 五条防线，全在可替换的缺省后端里）。
 - **J6 协议与硬化**：Anthropic + Gemini 协议适配、取消贯通、**重试装饰器**、并发硬化、fuzz、SDK 门面 + CLI。
 
 ### 技能机制（J7）
@@ -99,13 +99,14 @@
 - macOS Seatbelt 的**强制效果**未在真机验收（本机 `sandbox_apply: Operation not permitted`）——验收包见 `tools/seatbelt-acceptance/`。
 - Linux / Windows 后端未验证 / 未实现。
 - 技能 `allowed-tools` 只诊断不生效（不造第二套安全真相）。
-- 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（114 条判定项，**110 条待签**）。
+- 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（115 条判定项，**111 条待签**）。
 - 相对 Go 参考实现的 **16 项能力缺口已补齐**（2026-11-09 第四轮）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
 - **Gemini `responseFormat` 未实现**（协议支持 `responseMimeType` / `responseSchema`，Java 仅传 temperature / maxTokens）：需要真实 Gemini 接口环境验证，已确认缺口并暂缓。
+- **`web_fetch` 未对真实公网主机做端到端验收**：传输层已用本地真 socket 端到端跑通（chunked / gzip / 上限 / 重定向），但真实站点的 TLS 链接、反爬拦截、重定向到 CDN 等场景仍属未知。
 
 ### 机械门基线
 
-- 默认 reactor **869 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，106 个测试类）；`-Pstarter` **893 / 7**；`-Pexamples` **894 / 7**（示例自身 25 条）；`-Pexamples,mcp` **897 / 7**（示例自身 28 条）。
+- 默认 reactor **912 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，109 个测试类）；`-Pstarter` **936 / 7**；`-Pexamples` **937 / 7**（示例自身 25 条）；`-Pexamples,mcp` **940 / 7**（示例自身 28 条）。
 - 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
 
 ---
@@ -150,6 +151,8 @@
 
 ### `mos4j-tool`：`web_fetch` 抽出可注入 `Fetcher`（GO-DIFF #18）
 
+> **已被下一节取代**：本节的 `Fetcher` 形状（`fetch(FetchRequest)` / `name()="pinned"` / 四条防线分居工具层与后端）在随后一轮全对齐中**二次重构**，保留此段仅作变更历史。
+
 - 新增 `Fetcher` 接口（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`PinnedConnector` 从「唯一实现」降为**缺省实现**（`implements Fetcher`，`name() = "pinned"`）。
 - `WebFetchTool` 构造器：`(PinnedConnector, int)` → `()` / `(Fetcher)` / `(Fetcher, int)`。
 - **换掉实现 = 换掉防线**：缺省 `PinnedConnector` 带四条 SSRF 防线（公网校验 / 地址钉住 / 同源重定向 / 体积超时），需要走代理 / 专线 / 测试内网的宿主自备实现并一并接过访问策略责任。
@@ -161,3 +164,37 @@
 - **保留 `REASONING`**：Java 侧真的实现了（`reasoningEffort` → `thinking.budget_tokens` + `thinking` / `thinking_delta` 两通道）——这里 Go 不声明属**欠报**，不是我们多报。
 - 守护：`L1AnthropicScenariosTest.a_capabilitiesHaveNoStructuredOutput`。
 - [`docs/contract/GO-DIFF.md`](docs/contract/GO-DIFF.md) 新增 #15 / #16 两条（均为「声明了但没做到」的真缺口，已修复）；`SELF-INVENTED.md` 新增 SI-53；评审表 113 条判定项 / **109 条待签**。
+
+---
+
+## 未发布 —— web_fetch 全对齐与传输层可测化（2026-11-09）
+
+> 触发问题：「web_fetch 要不要全对齐 Go」——逐项核对 Go `tool/web/fetch.go` 与 `web.go` 后发现，**不只是缺 4 个特性，而是分层错了**：
+> Java 把 SSRF 防线放在工具层，Go 全放在缺省后端；结果「换后端 = 换防线」在 Java 侧不成立（实测：注入后端被工具层拦死）。
+
+### 分层重做：防线全部下沉到缺省后端（GO-DIFF #18）
+
+- **工具层**（`WebFetchTool`）只做参数校验、字符截断、回执整形——**不解析 DNS、不跟重定向、不做地址判定**；`Fetcher` 可为 `null`，未装配在**执行期** fail-closed（对齐 Go `Fetch.Execute` 的 nil 检查，错误文案 `url 不能为空` / `web_fetch 未装配抓取后端（宿主注入 Fetcher 后才可用）` 都不带 `web_fetch 失败: ` 前缀）。
+- **后端**（`PinnedConnector`）带全部五条防线 + 内容归类 + HTML 清洗；`Fetcher` 是可替换接口。
+- **地址钉住改用裸 Socket**：`HttpURLConnection` / `HttpClient` 无拨号钩子，`Proxy.Type.DIRECT` 会忽略代理地址并重新解析主机名 = **假钉住**。现在手写 HTTP/1.1 GET（状态行 / 头 / chunked / gzip / 字节上限 / TLS-SNI）。
+- **回执 6 键固定都在**（`url` / `status_code` / `title` / `content_type` / `truncated` / `content`）：Go 的 map 字面量无 `omitempty`；空标题发 `""`、`truncated` 发 `false`。上一版的「空值省略」**作废**。
+- **非 2xx 是结果不是错误**（404 带 `status_code` 正常返回，因为「资源状态」本身就是模型要的信息）；**缺 Content-Type 响亮失败**（旧「空类型按文本」的宽容行为推翻）。
+
+### 新公开面
+
+- `FetchLimits` record（5MB 字节 / 10 万字符 / 30s / 5 跳 / UA，`defaults()` + `normalized()`）；`FetchResult` 顶层 record。
+- `Fetcher`：`name()` + `fetch(String, FetchLimits)`（**破坏性变更**：旧 `fetch(FetchRequest)` 与 `lastReadTruncated()` 删除）。
+- `Resolver` / `Dialer` 两个函数接口（对齐 Go 的 `HTTPFetcher.Resolver` / `.Dial`）：只注入解析器仍钉住（地址来源变了、防线不变）；注入拨号器就不再钉住（责任转移，javadoc 明写）。
+- `PinnedConnector.name()` 返回 `"http"`（对齐 Go `HTTPFetcher.Name()`）。
+
+### HTML → 纯文本
+
+- 新增 `HtmlText`（包内可见）：标题提取、四类块级/脚本块处理、十项命名实体 + 十进制/十六进制数值实体、两趟解码、逐行压空白；六条正则逐字移植 Go，用 RE2J（C6 禁 `java.util.regex`）。
+- **期望值用真 Go 产出**：本机 `go1.27.0` 跑参考实现（`.j7log2/htmlref/`），发现 3 处自写期望错，`HtmlText` 实现本身零修改。
+- **两处有意偏离 Go**（登记 GO-DIFF #20 / #21）：Go 的十六进制实体解码因去前缀漏字符**从不生效**（`&#x41;` 原样输出），Java 按意图解；Go 对代理对码点输出 U+FFFD，Java 保留实体原文。
+
+### 测试
+
+- `PinnedConnectorTransportTest`（**22 条，真 socket**）：出站报文与 Host / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与码点双上限 / 404 / 三类非文本与缺 Content-Type / 同源与跨源重定向 / 跳数上限 / 注入解析器仍拦私网 / 非 HTTP 响应。
+- `PinnedConnectorTest` 8 / `HtmlTextTest` 9 / `WebToolsTest` 22（search 9 + fetch 13）。
+- `mos4j-tool` **315 → 358**；四套基线 **869/893/894/897 → 912/936/937/940**。

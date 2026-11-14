@@ -1,6 +1,6 @@
 # Go 参考实现（MoS）↔ Java（MoS4J）差异登记表
 
-> 状态：**2026-11-09 第四轮复核版**（第三轮 13 项差异全部补齐后，又补入 web_search / web_fetch / Anthropic 能力位 3 项）。
+> 状态：**2026-11-09 第五轮复核版**（第三轮 13 项差异全部补齐后，第四轮补入 web_search / web_fetch / Anthropic 能力位 3 项，第五轮把 web_fetch 整套重做并新增 HTML 实体两处有意偏离）。
 > 口径：**语义重写**——判定的是「语义是否等价」，不是「是否逐行同形」。
 > 标注约定：`✅ 已对齐` / `⚠️ 语义差异（有意）` / `❌ 能力缺口（未实现）`。
 > 关联文档：[`SELF-INVENTED.md`](SELF-INVENTED.md)（Java 侧有意差异）、
@@ -49,12 +49,16 @@
 | #15 | 请求侧 `reasoning_content` 回传（DeepSeek / Qwen thinking 模式多轮） | 能力缺口 | ✅ 已对齐（2026-11-08 二次复核发现并修复） |
 | #16 | `ContentPart` 的 audio / file 三协议映射 | 能力缺口 | ✅ 已对齐（file 一个有意差异见 SI-53） |
 | #17 | `web_search` 的参数与回执形状 | 语义差异 | ✅ 已对齐（多查询 `queries[]` + 结构化回执） |
-| #18 | `web_fetch` 的抓取后端可注入性 | 能力缺口 | ✅ 已对齐（`Fetcher` 接口；`PinnedConnector` 降为缺省实现） |
+| #18 | `web_fetch` 的分层与抓取后端可注入性 | 能力缺口 | ✅ 已对齐（全防线下沉 `PinnedConnector`；裸 Socket 真钉住；回执 6 键固定；非 2xx 是结果） |
 | #19 | Anthropic 能力位多报 `STRUCTURED_OUTPUT` | 能力位失实 | ✅ 已对齐（删 `STRUCTURED_OUTPUT`；`REASONING` 保留为**欠报**对位） |
+| #20 | Go 的十六进制实体解码事实上从不生效（`ParseInt("x41")` 必失败） | Go 实现瑕疵 | ⚠️ Java 按意图解（见 §3 #20） |
+| #21 | Go 的代理对码点解码静默变成 U+FFFD | Go 实现口径 | ⚠️ Java 原样保留实体（见 §3 #21） |
 
 > **编号说明**：#1–#10 是 2026-11-07 第一轮初查的编号；#11–#13 是同日逐行复核新增；#14 已在 SI-15 登记。
 > **#15 / #16 是 2026-11-08 第三次复核（出站报文抓包）发现的真缺口**：两者都是「声明了但没做到」，
 > 且有实际后果（thinking 模式多轮 400；多模态内容静默丢弃），因此归为能力缺口而非语义差异。
+> **#20 / #21 是 2026-11-09 运行 Go 参考实现实测得到的**：两条都是 Go 侧的实体解码瑕疵（不是 Java 缺能力），
+> Java 有意偏离并给出理由，因此状态标 ⚠️ 而非 ✅。
 > **本轮结论**：13 项差异的生产代码与定向用例全部落地；剩余工作是文档登记与人工签字，不是能力缺口。
 > **2026-11-08 二次复核补记**：#15 / #16 两项新增缺口已修复（出站报文抓包验证），详见 §3 末尾。
 
@@ -180,13 +184,43 @@
 - **修复前的实际后果**：Java 只收 `query`（模型发 `queries[]` 直接参数校验失败），`limit` 缺省 5 / 上限 10（与 Go 的 8 不同），回执是纯文本（宿主拿不到 `count` / `truncated` / `note`）。
 - **守护用例**：`WebToolsTest` 9 条（结构化回执逐字段 / 多查询去重合并 / `query` 单条容错 / 空查询与超 4 条报错 / `limit` 缺省与上限 8 / provider 失败是工具错误 / 部分失败进 note / 全部失败是错误）。
 
-### #18 `web_fetch` 的抓取后端可注入性
+### #18 `web_fetch` 的分层与抓取后端可注入性
 
-- **Go 证据**：`tool/web/provider.go` 的 `Fetcher`（`Name()` + `Fetch(ctx, url) (FetchResult, error)`）；`tool/web/fetch.go` 的 `HTTPFetcher`（缺省实现，带 SSRF 五防线）；`tool/web/web.go` 的 `Fetch.Fetcher` 字段 + `Tools(searcher, fetcher)`（nil → 不给工具）。Go 注释明写：需要代理的宿主自备 `Fetcher` 实现。
-- **Go 语义**：抓取后端是**可注入接口**；缺省实现的 SSRF 防线只对直连公网成立，换实现 = 换访问策略（责任随之内移给宿主）。
-- **Java 落点**：新增 `mos4j-tool/web/Fetcher`（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`WebFetchTool.FetchRequest`（`uri` / `resolved` / `timeout` / `maxBytes`）；`PinnedConnector implements Fetcher`（`name() = "pinned"`，原 `fetch(URI, List, Duration, int)` 改成接 `FetchRequest`）；`WebFetchTool` 构造器改成 `()` / `(Fetcher)` / `(Fetcher, int)`。
-- **修复前的实际后果**：`WebFetchTool` 只收具体类 `PinnedConnector`，宿主无法接代理 / 专线 / 测试内网后端（Go 侧一直可以）。
-- **守护用例**：`WebToolsTest` 3 条（自备 `Fetcher` 可注入并拿到 `maxBytes` / 自定义后端的截断标记被渲染成附注 / `Fetcher` 必填且缺 url 报错）。
+- **Go 证据**：`tool/web/provider.go` 的 `Fetcher`（`Name()` + `Fetch(ctx, url) (FetchResult, error)`）；`tool/web/fetch.go` 的 `HTTPFetcher`（缺省实现，带 SSRF 五防线 + 内容归类 + HTML 清洗）；`tool/web/web.go` 的 `Fetch.Fetcher` 字段 + `Tools(searcher, fetcher)`（nil → 不给工具）。
+- **Go 分层（关键）**：工具层 `Fetch.Execute` 只做「参数校验 + 字符截断 + 回执整形」，**不解析 DNS、不跟重定向、不做地址判定**；五条防线、内容归类、HTML 转文本全在 `HTTPFetcher.Fetch` 里。所以「换掉实现 = 换掉防线」成立。
+- **Go 可测性**：`HTTPFetcher` 有两个注入点——`Resolver`（`LookupIP`）与 `Dial`（`DialContext`）；测试用「解析器谎报公网地址 + 拨号器指向本地监听」组合（`fetch_test.go` 的 `testFetcher`/`dialTo`），于是传输层行为（chunked、体积上限、重定向链、404）都能真跑。
+- **Java 落点**：
+  - `Fetcher`（`name()` + `fetch(String, FetchLimits) → FetchResult`）；
+  - `FetchLimits` record（字节 / 字符 / 超时 / 跳数 / UA，`defaults()` + `normalized()`）；
+  - `FetchResult` 顶层 record（url / statusCode / title / contentType / content / truncated）；
+  - `PinnedConnector implements Fetcher`（`name() = "http"`），构造器 `()` 与 `(Resolver, Dialer)`；
+  - `Resolver` / `Dialer` 两个函数接口（对齐 Go 的两个注入点）；
+  - `WebFetchTool` 构造器 `()` / `(Fetcher)` / `(Fetcher, FetchLimits)` / `(Fetcher, FetchLimits, int)`；`Fetcher` 允许为 `null`（对齐 Go 的 `Fetcher` 字段可为 nil），未装配在**执行期** fail-closed。
+- **防线分层（本轮重做）**：第一版把地址校验放在 `WebFetchTool` 里——注入后端就被工具层拦死（实测：`web_fetch 失败: 主机解析失败: x.dev`），「换实现 = 换防线」不成立。现在五条防线全部下沉到 `PinnedConnector`。
+- **地址钉住必须裸 Socket**：`HttpURLConnection` / `HttpClient` 都无拨号钩子；`Proxy.Type.DIRECT` 会忽略代理地址、照常解析主机名 = **假钉住**。JDK 内唯一真钉法是裸 `Socket` + 手写 HTTP/1.1 GET（`PinnedConnector` 当前实现：状态行 / 头 / chunked / gzip / 字节上限 / TLS-SNI）。
+- **回执 6 键固定都在**（Go map 字面量无 `omitempty`）：`url` / `status_code` / `title` / `content_type` / `truncated` / `content`；空标题发 `""`，`truncated` 发 `false`。上一轮的「空值省略」语义**作废**。
+- **非 2xx 是结果不是错误**：404 带 `status_code=404` 正常返回（Go `fetch_test.go:212-213` 同断言）；上一轮旧实现抛 `"HTTP {status}"` 已废。
+- **HTML 抓取侧清洗**：`HtmlText`（`title` / `toText` / `decodeEntities`）逐字移植 Go 的六条正则与十项实体表，正则用 RE2J（C6 禁 `java.util.regex`）。
+- **破坏性变更（第二次）**：`Fetcher.fetch` 从 `fetch(FetchRequest)` 改成 `fetch(String, FetchLimits)`；删 `lastReadTruncated()`（`FetchResult.truncated` 已足够，Go 接口也只有两个方法）；删 `WebFetchTool.FetchRequest`、密封 `WebFetchTool.FetchResult`、`DEFAULT_MAX_BYTES` / `MAX_REDIRECTS` / `MAX_URL_LENGTH` / `DEFAULT_TIMEOUT`（全部归到 `FetchLimits` / `FetchResult` / `PinnedConnector`）。
+- **错误文案与检查顺序逐字对齐 Go**：`url` 空 → `url 不能为空`（**无** `web_fetch 失败: ` 前缀）；后端未装配 → `web_fetch 未装配抓取后端（宿主注入 Fetcher 后才可用）`；两句都在**执行期**且 `url` 检查在前；只有后端抛错才包 `web_fetch 失败: ` 前缀。
+- **守护用例**：`WebToolsTest` **22 条**（search 9 + fetch 13：回执 6 键全 / 404 是结果 / 空值不省略 / 字符与码点双截断 / 自定义后端可绕开公网校验 / 后端异常包成工具错误 / 四类私网拒绝 / URL 拒绝 / 两句执行期文案与优先级）；`PinnedConnectorTest` 8 条（内容类型归类 / 同源 / URL 校验 / 公网地址 / 上限归一化 / UA）；`PinnedConnectorTransportTest` 22 条（真 socket：出站报文 / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与字符上限 / 404 / 三类内容类型守卫 / 同源与跨源重定向 / 跳数上限 / 缺 Location / 注入解析器仍过公网校验 / 解析失败 / 非 HTTP 响应）；`HtmlTextTest` 9 条。
+
+### #20 Go 的十六进制实体解码事实上从不生效
+
+- **Go 证据**：`tool/web/fetch.go` 的 `htmlHexEnt` 回调——正则 `&#x…;` / `&#X…;`（十六进制数字组）匹配后，回调里 `strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(e, "&"), "#"), ";"), 16, 32)` 得到的字符串是 `"x41"`（**`x` 没被去掉**），`ParseInt` 必然报错 → 原样返回。
+- **实测证据**（`.j7log2/htmlref/edge.go`，go1.27.0 darwin/arm64）：`&#x41;` → `"&#x41;"`、`&#x1F600;` → `"&#x1F600;"`、`&#xFFFD;` → `"&#xFFFD;"`；十进制都正常（`&#128512;` → `😀`）。
+- **Go 语义**：正则写了十六进制分支、意图明显是「也解十六进制」，但实现在去前缀时漏了一个字符。
+- **Java 落点**：`HtmlText.decodeNumeric` 按**意图**解十六进制（`&#x41;` → `A`、`&#X41;` → `A`、`&#x1F600;` → `😀`）。
+- **为什么偏离**：把 `&#x27;` 这类实体原样发给模型是确定的噪声；且「正则写了分支却不生效」是明显的实现瑕疵而非设计选择。与 Go 注释与实现冲突时跟随意图的既有惯例（同 SI-53 的 Anthropic audio）一致。
+- **守护用例**：`HtmlTextTest.hexEntitiesAreDecoded`（三个十六进制形）与 `decodesInTwoPasses`（`&amp;#x41;` → `A`，注明此处与 Go 不同）。
+
+### #21 Go 的代理对码点解码会静默变成 U+FFFD
+
+- **Go 证据**：`htmlNumEnt` 回调 `return string(rune(n))`——`n` 在 `(0, 0x10FFFF]` 内就放行，但 `rune` 落在代理区 `0xD800–0xDFFF` 时 Go 的 `string(rune)` 会产出替换字符。
+- **实测证据**（同上）：`&#55296;`（`0xD800`）→ `"\uFFFD"`；`&#57343;`（`0xDFFF`）→ `"\uFFFD"`。
+- **Java 落点**：`HtmlText.parseCodePoint` 拒代理区，实体**原样保留**（`&#xD800;` 不变）。
+- **为什么偏离**：U+FFFD 是「已经坏了，但假装读到了字符」；保留实体至少提示「这里有个我们没解的东西」，也避免产出非法 UTF-16 序列。方向是更保守，不是更激进。
+- **守护用例**：`HtmlTextTest.surrogateCodePointsKeepTheEntity`（`&#xD800;` / `&#55296;` / `&#xDFFF;` 均原样）。
 
 ### #19 Anthropic 能力位多报 `STRUCTURED_OUTPUT`
 

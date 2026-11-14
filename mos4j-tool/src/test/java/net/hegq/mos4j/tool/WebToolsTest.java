@@ -1,14 +1,15 @@
 package net.hegq.mos4j.tool;
 
+import net.hegq.mos4j.tool.web.FetchLimits;
+import net.hegq.mos4j.tool.web.FetchResult;
 import net.hegq.mos4j.tool.web.Fetcher;
-import net.hegq.mos4j.tool.web.PublicAddresses;
+import net.hegq.mos4j.tool.web.PinnedConnector;
 import net.hegq.mos4j.tool.web.SearchProvider;
 import net.hegq.mos4j.tool.web.WebFetchTool;
 import net.hegq.mos4j.tool.web.WebSearchTool;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.net.InetAddress;
 import java.util.List;
 import java.util.Map;
 
@@ -18,14 +19,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * T5.8 + T5.9：web_search / web_fetch（SSRF 防线）。
+ * T5.8 + T5.9：web_search / web_fetch。
  *
- * <p>web_fetch 的传输层走真实 DNS 与网络——SSRF 防线的绕过测试
- * 针对「地址校验 / 同源重定向判定」这些<b>纯逻辑</b>，
- * 用 localhost / 内网名做真实 DNS 场景（解析结果必然是回环地址）。
+ * <p>web_search 的假后端是 lambda（{@link SearchProvider} 单方法）。
+ * web_fetch 的后端是 {@link Fetcher}（{@code name()} + {@code fetch()} 两个方法，
+ * 不是函数接口），假后端用匿名类。
  *
- * <p>抓取后端是 {@link Fetcher} 接口：可注入假后端验证「宿主自备 Fetcher」
- * 这条注入路径确实通（GO-DIFF #18）。
+ * <p>SSRF 防线在抓取后端（{@link PinnedConnector}）里，不在工具层——所以
+ * 「回环 / 内网 / 链路本地 / IPv4 映射」这些用例<b>用缺省后端</b>跑，
+ * 而「注入自定义后端」的用例必须能绕开公网校验（否则换实现就没意义了）。
  */
 class WebToolsTest {
 
@@ -187,7 +189,7 @@ class WebToolsTest {
         return String.valueOf(map.get("content"));
     }
 
-    // ---- web_fetch：SSRF 防线 ----
+    // ---- web_fetch：SSRF 防线（在抓取后端里）----
 
     @Test
     @DisplayName("防线一：回环地址被拒（localhost 解析结果 = 127.0.0.1）")
@@ -230,24 +232,30 @@ class WebToolsTest {
     }
 
     @Test
-    @DisplayName("防线边界：非 http/https 与缺主机直接报错")
-    void schemeAndHostChecks() {
+    @DisplayName("防线边界：非 http/https、超长 URL、内嵌凭据都是工具错误")
+    void urlRejectionsSurfaceAsToolErrors() {
         WebFetchTool tool = new WebFetchTool();
 
         ToolException scheme = assertThrows(ToolException.class,
                 () -> tool.execute("{\"url\":\"ftp://example.com/x\"}"));
+        assertTrue(scheme.getMessage().startsWith("web_fetch 失败"), scheme.getMessage());
         assertTrue(scheme.getMessage().contains("只支持 http/https"), scheme.getMessage());
 
-        ToolException host = assertThrows(ToolException.class,
-                () -> tool.execute("{\"url\":\"http:///nohost\"}"));
-        assertTrue(host.getMessage().contains("主机名"), host.getMessage());
+        String overlong = "https://example.com/" + "a".repeat(PinnedConnector.MAX_URL_LENGTH);
+        ToolException tooLong = assertThrows(ToolException.class,
+                () -> tool.execute("{\"url\":\"" + overlong + "\"}"));
+        assertTrue(tooLong.getMessage().contains("最大长度"), tooLong.getMessage());
+
+        ToolException credentials = assertThrows(ToolException.class,
+                () -> tool.execute("{\"url\":\"https://user:pass@example.com/x\"}"));
+        assertTrue(credentials.getMessage().contains("内嵌凭据"), credentials.getMessage());
     }
 
     // ---- web_fetch：Fetcher 注入（GO-DIFF #18）----
 
     @Test
-    @DisplayName("web_fetch：宿主自备 Fetcher 可注入并拿到请求参数")
-    void customFetcherIsInjectable() throws Exception {
+    @DisplayName("web_fetch：注入自定义 Fetcher 后公网校验不再拦路（换实现 = 换防线）")
+    void customFetcherReplacesTheGuards() throws Exception {
         boolean[] called = new boolean[1];
         Fetcher fake = new Fetcher() {
             @Override
@@ -256,38 +264,162 @@ class WebToolsTest {
             }
 
             @Override
-            public WebFetchTool.FetchResult fetch(WebFetchTool.FetchRequest request) {
+            public FetchResult fetch(String url, FetchLimits limits) {
                 called[0] = true;
-                assertEquals(512 * 1024, request.maxBytes(), "上限从工具传给后端");
-                return new WebFetchTool.FetchResult.Body("假后端正文", "text/plain", false);
+                assertEquals(5L << 20, limits.maxResponseBytes(), "上限从工具传给后端");
+                // 自定义后端可以抓内网（企业代理 / 测试内网），工具层不该再拦
+                return new FetchResult(url, 200, "", "text/plain", "假后端正文", false);
             }
         };
+
         WebFetchTool tool = new WebFetchTool(fake);
 
-        try {
-            String out = (String) tool.execute("{\"url\":\"https://example.com/a\"}");
-            assertTrue(called[0], "注入的后端应被调用");
-            assertTrue(out.contains("假后端正文"), out);
-            assertTrue(out.contains("外部内容不可信"), out);
-        } catch (ToolException e) {
-            // 离线沙箱里 DNS 不可用时，公网地址校验仍在生效——注入路径不强求连通
-            assertTrue(e.getMessage().contains("解析失败") || e.getMessage().contains("公网地址"),
-                    e.getMessage());
-        }
+        Map<String, Object> out = receiptOf(tool.execute("{\"url\":\"http://10.0.0.9/internal\"}"));
+
+        assertTrue(called[0], "注入的后端应被调用");
+        assertTrue(String.valueOf(out.get("content")).contains("假后端正文"), out.toString());
+        assertTrue(String.valueOf(out.get("content")).contains("外部内容不可信"), out.toString());
+        assertEquals(200, out.get("status_code"));
     }
 
     @Test
-    @DisplayName("web_fetch：Fetcher 必填；缺 url 报错")
+    @DisplayName("web_fetch：缺 url 与未装配后端都是执行期错误，文案对齐 Go")
     void fetchRequiresFetcherAndUrl() {
-        assertThrows(IllegalArgumentException.class, () -> new WebFetchTool((Fetcher) null));
+        // 后端可以是 null（装配顺序自由），只有真调用时才 fail-closed
+        WebFetchTool noBackend = new WebFetchTool((Fetcher) null);
+        ToolException missing = assertThrows(ToolException.class, () -> noBackend.execute("{\"url\":\"https://example.com\"}"));
+        assertEquals("web_fetch 未装配抓取后端（宿主注入 Fetcher 后才可用）", missing.getMessage());
 
         WebFetchTool tool = new WebFetchTool(bodyFetcher("x"));
         ToolException e = assertThrows(ToolException.class, () -> tool.execute("{}"));
-        assertTrue(e.getMessage().contains("url 不能为空"), e.getMessage());
+        assertEquals("url 不能为空", e.getMessage());
+
+        // url 空优先于后端缺失：Go 里 url 检查在前
+        ToolException blank = assertThrows(ToolException.class, () -> noBackend.execute("{\"url\":\"   \"}"));
+        assertEquals("url 不能为空", blank.getMessage());
+    }
+
+    @Test
+    @DisplayName("web_fetch：后端抛 IOException / ToolException 都变成工具错误")
+    void fetchWrapsBackendFailures() {
+        Fetcher ioFailing = new Fetcher() {
+            @Override
+            public String name() {
+                return "io";
+            }
+
+            @Override
+            public FetchResult fetch(String url, FetchLimits limits) throws java.io.IOException {
+                throw new java.io.IOException("web: 抓取失败: 连接超时");
+            }
+        };
+        ToolException io = assertThrows(ToolException.class,
+                () -> new WebFetchTool(ioFailing).execute("{\"url\":\"https://example.com/\"}"));
+        assertTrue(io.getMessage().startsWith("web_fetch 失败"), io.getMessage());
+        assertTrue(io.getMessage().contains("连接超时"), io.getMessage());
+
+        Fetcher semanticFailing = new Fetcher() {
+            @Override
+            public String name() {
+                return "semantic";
+            }
+
+            @Override
+            public FetchResult fetch(String url, FetchLimits limits) {
+                throw new ToolException("web: 不支持的内容类型 \"image/png\"（只取文本类）");
+            }
+        };
+        ToolException semantic = assertThrows(ToolException.class,
+                () -> new WebFetchTool(semanticFailing)
+                        .execute("{\"url\":\"https://example.com/\"}"));
+        assertTrue(semantic.getMessage().contains("不支持的内容类型"), semantic.getMessage());
+    }
+
+    // ---- web_fetch：回执形状对齐 Go ----
+
+    @Test
+    @DisplayName("web_fetch：回执六个键齐全（url/status_code/title/content_type/truncated/content）")
+    void fetchReturnsStructuredReceipt() throws Exception {
+        WebFetchTool tool = new WebFetchTool(bodyFetcher(
+                "https://x.dev/final", 200, "标题", "text/html; charset=utf-8", "正文", false));
+
+        Map<String, Object> out = receiptOf(tool.execute("{\"url\":\"https://x.dev/p\"}"));
+
+        assertEquals("https://x.dev/final", out.get("url"), "url 是后端给的最终地址");
+        assertEquals(200, out.get("status_code"));
+        assertEquals("标题", out.get("title"));
+        assertEquals("text/html; charset=utf-8", out.get("content_type"), "Content-Type 原样透传");
+        assertEquals(false, out.get("truncated"), "Go 的 map 字面量没有 omitempty：false 也发");
+        assertTrue(String.valueOf(out.get("content")).contains("正文"), out.toString());
+        assertTrue(String.valueOf(out.get("content")).contains("外部内容不可信"),
+                "抓回内容应带不可信标注");
+    }
+
+    @Test
+    @DisplayName("web_fetch：非 2xx 是结果不是错误（404 带着 status_code 正常返回）")
+    void non2xxIsAResultNotAnError() throws Exception {
+        WebFetchTool tool = new WebFetchTool(
+                bodyFetcher("https://x.dev/missing", 404, "", "text/html", "没有这个页面", false));
+
+        Map<String, Object> out = receiptOf(tool.execute("{\"url\":\"https://x.dev/missing\"}"));
+
+        assertEquals(404, out.get("status_code"), "404 是资源状态，不是抓取失败");
+        assertTrue(String.valueOf(out.get("content")).contains("没有这个页面"), out.toString());
+    }
+
+    @Test
+    @DisplayName("web_fetch：空 title / content_type 发空串（不省略键）")
+    void fetchKeepsEmptyFields() throws Exception {
+        WebFetchTool tool = new WebFetchTool(
+                bodyFetcher("https://x.dev/p", 200, "", "", "纯文本", false));
+
+        Map<String, Object> out = receiptOf(tool.execute("{\"url\":\"https://x.dev/p\"}"));
+
+        assertTrue(out.containsKey("title"), "键在，值是空串");
+        assertEquals("", out.get("title"));
+        assertTrue(out.containsKey("content_type"));
+        assertEquals("", out.get("content_type"));
+    }
+
+    @Test
+    @DisplayName("web_fetch：正文超字符上限 → 截断并标注，truncated=true")
+    void fetchTruncatesContentByChars() throws Exception {
+        WebFetchTool tool = new WebFetchTool(
+                bodyFetcher("https://x.dev/p", 200, "", "text/plain", "字".repeat(500), false),
+                FetchLimits.defaults(), 100);
+
+        Map<String, Object> out = receiptOf(tool.execute("{\"url\":\"https://x.dev/p\"}"));
+
+        assertEquals(true, out.get("truncated"), "超长时 truncated 应为 true");
+        String content = String.valueOf(out.get("content"));
+        assertTrue(content.contains("已截断"), content);
+        assertTrue(content.contains("完整上限 100 字符"), content);
+        assertTrue(content.contains("字".repeat(100)), "保留前 100 个字符");
+        assertFalse(content.contains("字".repeat(101)), "第 101 个字符不该出现");
+    }
+
+    @Test
+    @DisplayName("web_fetch：截断按码点算（emoji 不被劈成半个）")
+    void fetchTruncatesByCodePoint() throws Exception {
+        WebFetchTool tool = new WebFetchTool(
+                bodyFetcher("https://x.dev/p", 200, "", "text/plain", "😀".repeat(10), false),
+                FetchLimits.defaults(), 5);
+
+        String content = String.valueOf(
+                receiptOf(tool.execute("{\"url\":\"https://x.dev/p\"}")).get("content"));
+
+        assertTrue(content.contains("😀".repeat(5)), content);
+        assertFalse(content.contains("😀".repeat(6)), content);
     }
 
     /** 固定正文的假后端（{@link Fetcher} 有两个抽象方法，不能用 lambda）。 */
-    private static Fetcher bodyFetcher(String text) {
+    private static Fetcher bodyFetcher(String content) {
+        return bodyFetcher("https://x.dev/p", 200, "", "text/plain", content, false);
+    }
+
+    /** 可指定全部回执字段的假后端。 */
+    private static Fetcher bodyFetcher(String url, int status, String title, String contentType,
+                                       String content, boolean truncated) {
         return new Fetcher() {
             @Override
             public String name() {
@@ -295,42 +427,14 @@ class WebToolsTest {
             }
 
             @Override
-            public WebFetchTool.FetchResult fetch(WebFetchTool.FetchRequest request) {
-                return new WebFetchTool.FetchResult.Body(text, "text/plain", false);
+            public FetchResult fetch(String target, FetchLimits limits) {
+                return new FetchResult(url, status, title, contentType, content, truncated);
             }
         };
     }
 
-    // ---- PublicAddresses 的纯逻辑边界 ----
-
-    @Test
-    @DisplayName("公网判定：公网 IP 通过；内网 / CGNAT / ULA 拒绝")
-    void publicAddressBoundaries() throws Exception {
-        assertTrue(PublicAddresses.allPublic(List.of(
-                InetAddress.getByName("93.184.216.34"))));
-        assertTrue(PublicAddresses.allPublic(List.of(
-                InetAddress.getByName("2606:2800:220:1:248:1893:25c8:1946"))));
-        for (String bad : new String[]{
-                "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1",
-                "127.0.0.1", "0.0.0.0", "169.254.1.1", "100.64.0.1",
-                "224.0.0.1", "198.18.0.1", "::1", "fe80::1", "fd00::1"}) {
-            assertFalse(PublicAddresses.allPublic(List.of(InetAddress.getByName(bad))),
-                    bad + " 应判为非公网");
-        }
-        assertFalse(PublicAddresses.allPublic(List.of()), "空地址列表 = 拒绝");
-    }
-
-    // ---- Guideline（T5.10）----
-
-    @Test
-    @DisplayName("Guideline：聚合渲染稳定，空规范渲染为空串")
-    void guidelinesRenderStably() {
-        Guideline g1 = () -> "read 之后才能 write/edit";
-        Guideline g2 = () -> "先 glob 再 grep，缩小搜索范围";
-
-        String out = Guidelines.render(List.of(g1, g2));
-        assertEquals("- read 之后才能 write/edit\n- 先 glob 再 grep，缩小搜索范围", out);
-        assertEquals(out, Guidelines.render(List.of(g1, g2)), "渲染逐字节一致");
-        assertEquals("", Guidelines.render(List.of()), "空规范 = 空串");
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> receiptOf(Object receipt) {
+        return (Map<String, Object>) receipt;
     }
 }

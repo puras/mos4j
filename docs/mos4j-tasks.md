@@ -428,8 +428,8 @@
   → `BuiltinSearchToolsTest`（17 条）+ `GrantAccessToolTest`（6 条）+ `DeferredToolsTest`（9 条）+ `DeferredFlowTest`（2 条）+ `WebToolsTest`（10 条）+ `ToolContractTest`（4 条：工具名与参数名清单守护）
 - [x] grep 用 RE2J（**代码里不得出现 `java.util.regex`**）
   → `mos4j-tool/pom.xml` 直接依赖 `com.google.re2j`；全仓源码扫描 `import java.util.regex` = 无（CI C6 门）
-- [x] SSRF 四条防线各有绕过测试
-  → 防线一（公网校验）4 条绕过用例 + 边界 1 条（`WebToolsTest`）；防线三（同源重定向）判定在 `WebFetchTool` 循环内；防线二/四（钉住 / 体积超时）为传输层实现，真机 rebinding 对拍不可行——边界已登记（`L3-SCENARIOS.md` D4 说明 + `SELF-INVENTED.md`）
+- [x] SSRF 五条防线各有绕过测试（2026-11-09 第五轮补全为五条，见 T17）
+  → 防线一（URL 校验）与防线二（公网校验）判定层用例：`PinnedConnectorTest`（8 条：URL 校验 / 公网地址分类 / 内容类型归类 / 同源 / 上限归一化 / UA）+ `WebToolsTest`（四类私网拒绝 + URL 拒绝成工具错误）；防线三（裸 Socket 地址钉住）与防线四（同源重定向）、防线五（体积与时间上限）在 `PinnedConnectorTransportTest` **22 条真 socket** 用例里逐条对拍（chunked / gzip / 双上限 / 同源与跨源重定向 / 跳数上限 / 注入解析器仍过公网校验）；真机 rebinding 对拍不可行——边界已登记（`L3-SCENARIOS.md` D4 说明 + `SELF-INVENTED.md` SI-22）
 
 ---
 
@@ -734,9 +734,28 @@
 - [x] **T16.1 `web_search` 参数与回执形状对齐 Go**（GO-DIFF #17）：新增 `queries[]`（1–4 并行搜索 + URL 去重合并），`query` 降为单条容错；`limit` 缺省与上限都是 **8**（原 5 / 10）；回执改为结构化 map（`queries`/`summary`/`note`/`sources`/`count`/`truncated`/`content`）
 - [x] **T16.2 web_search 失败语义翻案**：provider 整体失败 → **工具错误**（`ToolException`，对齐 Go `web_search 失败: %w`）；只有「部分查询失败」才保留结果 + `note`；全部失败且零结果 → `web_search 失败: 全部查询都失败（…）: …`。**旧口径「非 2xx 是结果不是错误」作废**
 - [x] **T16.3 `SearchProvider` 接口改多查询形状**（**破坏性变更**，已获用户批准）：`search(List<String>, int) → Outcome`；单查询厂商用 `SearchProvider.Single` + `WebSearchTool.of(...)`（虚拟线程并行 + 去重 + 部分失败容忍）；删除 `WebSearchParams`（`mv` 至 `.j7log2/`）
-- [x] **T16.4 `web_fetch` 抽出可注入 `Fetcher`**（GO-DIFF #18）：新增 `Fetcher` 接口（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`WebFetchTool.FetchRequest(uri, resolved, timeout, maxBytes)`；`PinnedConnector` 从「唯一实现」降为**缺省实现**（`implements Fetcher`，`name()="pinned"`）；构造器 `(PinnedConnector,int)` → `()` / `(Fetcher)` / `(Fetcher,int)`。**换掉实现 = 换掉防线**
+- [x] **T16.4 `web_fetch` 抽出可注入 `Fetcher`**（GO-DIFF #18；**已被 T17 整套取代**——本行的 `FetchRequest` / `lastReadTruncated()` / `name()="pinned"` / 构造器形状均已不存在，保留作批次记录）：新增 `Fetcher` 接口（`name()` + `fetch(FetchRequest)` + 默认 `lastReadTruncated()`）；`WebFetchTool.FetchRequest(uri, resolved, timeout, maxBytes)`；`PinnedConnector` 从「唯一实现」降为**缺省实现**（`implements Fetcher`，`name()="pinned"`）；构造器 `(PinnedConnector,int)` → `()` / `(Fetcher)` / `(Fetcher,int)`。**换掉实现 = 换掉防线**
 - [x] **T16.5 Anthropic 删 `STRUCTURED_OUTPUT`**（GO-DIFF #19）：Anthropic 协议无 `response_format`；**保留 `REASONING`**（Java 真实现：`reasoningEffort` → `thinking.budget_tokens` + `thinking`/`thinking_delta` 两通道）；Go 不声明属欠报
 - [x] **T16.6 测试**：`WebToolsTest` 重写为 **18 条**（search 9 / fetch 7 / 公网边界 + Guideline 渲染）；`L1AnthropicScenariosTest` 新增 `a_capabilitiesHaveNoStructuredOutput`（→ 15 条）；`ToolContractTest` 参数期望改 `web_search → [queries, query, limit]`（required 期望改为空集：三参数都非必填）
 - [x] **T16.7 文档同步**：GO-DIFF 新增 #17/#18/#19；API.md web 段重写（`SearchProvider` 多查询 + `Outcome`/`Single`、`Fetcher`、`WebFetchTool` 构造器）+「非 2xx」口径改「失败是工具错误」+ §4 文案表 web 两行重写；INVARIANT-TESTS §2 的 web 两行改正；J5-STATUS（失败模式表、T5.8/T5.9 条数、场景计数 8/8 → 9/9）；L3-SCENARIOS（L3-26 改写、新增 L3-28、后续编号顺移）；SELF-INVENTED SI-22 补「换实现 = 换防线」；CHANGELOG 新节；REVIEW-SHEET 新增 **B27**（共 **114 条**判定项、**110 条待签**）
 - [x] **T16.8 全 profile 回归**：默认 **869 / 0 / 0 / 7**、`-Pstarter` **893 / 0 / 0 / 7**、`-Pexamples` **894 / 0 / 0 / 7**、`-Pexamples,mcp` **897 / 0 / 0 / 7**（106 个测试类）；依赖审计零告警；C6 spring=0 / regex import=0；裸 NUL=0；`git diff --check` rc=0；文档相对链接 0 断链。日志：`.j7log2/r4b-*.log`
 - **本批不做**：**Gemini `responseFormat`**（无 Gemini 接口环境，缺口已确认并登记）；**Gemini 缺 `REASONING`** 的反向差异（同行缺口，待有环境时一并处理）；**web_fetch 回执的 `status_code`/`title`/`content_type` 字段与 HTML title 提取**（Go 有，Java 仍为文本块——已在 GO-DIFF #18 登记）
+
+## T17 web_fetch 全对齐与传输层可测化（2026-11-09）
+
+> 动因：用户要求「全对齐 web_fetch」。逐项核对 Go `tool/web/fetch.go` + `web.go` 后发现，
+> 不只是缺 4 个特性（回执 map 化 / HTML→纯文本 / 默认值 / 缺 Content-Type 报错），而是**分层错了**：
+> Java 把 SSRF 防线放在工具层，Go 全放在 `HTTPFetcher`——于是「换后端 = 换防线」在 Java 侧不成立（测试实证）。
+> 另发现 Go 回执 map **无 `omitempty`**（6 键始终在）与 `Proxy.Type.DIRECT` 是**假钉住**。
+
+- [x] **T17.1 防线下沉（架构级修正）**：五条防线（URL 校验 / 公网校验 / 地址钉住 / 同源重定向 / 体积超时）+ 内容归类 + HTML 洗涤全部下沉到 `PinnedConnector`；`WebFetchTool` 只做参数校验 / 字符截断 / 回执整形（对齐 Go 分层）。第一版把地址校验留在工具层，导致注入后端被拦死（`web_fetch 失败: 主机解析失败: x.dev`）
+- [x] **T17.2 裸 Socket 真钉住**：`Proxy.Type.DIRECT` 会忽略代理地址、照常解析主机名 = 假钉住；`HttpURLConnection` / `HttpClient` 都无拨号钩子。改为手写 HTTP/1.1 GET（状态行 / 头 / chunked / gzip / 字节上限 / TLS-SNI + 证书校验）
+- [x] **T17.3 回执 6 键固定 + 非 2xx 是结果**（回执 map 无 `omitempty`）：`url`/`status_code`/`title`/`content_type`/`truncated`/`content`；空标题发 `""`、`truncated` 发 `false`；404 带状态码正常返回。**旧「省略空值」与「非 2xx 抛错」两个口径均作废**
+- [x] **T17.4 HTML → 纯文本**：新增 `HtmlText`（`title()` / `toText()` / `decodeEntities()`）；六条正则逐字移植 Go（RE2J）；十项命名实体 + 十进制/十六进制数值实体；两趟解码；逐行压空白
+- [x] **T17.5 新公开面**：`FetchLimits` record（5MB / 10 万字符 / 30s / 5 跳 / UA，`defaults()` + `normalized()`）；`FetchResult` 顶层 record；`Fetcher`：`name() + fetch(String, FetchLimits)`（**破坏性变更**，旧 `fetch(FetchRequest)` 与 `lastReadTruncated()` 删除）；`Resolver` / `Dialer` 两个函数接口（对齐 Go 注入面）；`PinnedConnector.name() = "http"`
+- [x] **T17.6 传输层真 socket 可测化**：`PinnedConnectorTransportTest` **22 条**（出站报文与 Host / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与码点双上限 / 404 / 三类非文本与缺 Content-Type / 同源与跨源重定向 / 跳数上限 / 注入解析器仍拦私网 / 非 HTTP 响应）；`PinnedConnectorTest` 8 / `HtmlTextTest` 9 / `WebToolsTest` 回执重写 22
+- [x] **T17.7 期望值以真 Go 运行为准**：`.j7log2/htmlref/`（`main.go` + `edge.go`，go1.27.0）真跑 Go 的 `htmlToText` / `extractTitle` / `decodeEntities`；`HtmlTextTest` 首版 4 条失败**全是手写期望值错**（实现零修改）。同时发现 **GO-DIFF #20**（Go 十六进制实体解码从不生效）与 **#21**（Go 代理对码点产 U+FFFD）
+- [x] **T17.8 `WebFetchTool` 对齐 Go 执行序**：url 先 `trim` 再交后端；`url` 空 / `fetcher == null` 的检查与文案按 Go 原文
+- [x] **T17.9 文档同步**：GO-DIFF #18 重写（分层 / 裸 Socket / 6 键 / 注入面）+ 新增 #20/#21；API.md web 段重写（新类型、构造器、五条防线、分层说明）；SELF-INVENTED SI-22 重写（五条防线 + 旧口径作废）；J5-STATUS（模块表、失败模式表、T5.9 条数、场景计数 9/9 → 11/11）；L3-SCENARIOS（L3-27 改写、新增 L3-31/L3-32）+ 传输层边界重写；INVARIANT-TESTS §2 line 12 + 新增 §3.11；CHANGELOG 新节；REVIEW-SHEET 新增 **B28**（共 **115 条**判定项、**111 条待签**）；release.md / MCP-STATUS 基线数字
+- [x] **T17.10 全 profile 回归**：默认 **912 / 0 / 0 / 7**（109 个测试类）、`-Pstarter` **936**、`-Pexamples` **937**、`-Pexamples,mcp` **940**；依赖审计零告警；C6 spring=0 / regex import=0；裸 NUL=0；`git diff --check` rc=0。日志：`.j7log2/r5-*.log`
+- **本批不做**：**真实公网主机的端到端验收**（TLS / 反爬 / CDN 重定向均属未知，需真实网络）；**rebinding 真机对拍**（需恶意权威 DNS，登记 B25 / SI-22）；**Gemini `responseFormat`**（仍待环境）

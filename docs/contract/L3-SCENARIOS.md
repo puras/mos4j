@@ -48,12 +48,14 @@
 | L3-24 | glob 语义 | 不含 `/` 按文件名；含 `/` 按相对路径；`**/` 目录可选；非法模式报错；越界由 jail 拦 | ✅ `BuiltinSearchToolsTest.globMatchesByFileName` / `globMatchesByPath` / `globSupportsCharClassAndBraces` / `globRejectsInvalidPattern` / `globIsJailed` |
 | L3-25 | grant_access 三态 | 批准才加根；拒绝不加根且含「不许绕」；回调异常 = fail-closed 拒绝；批准不缓存 | ✅ `GrantAccessToolTest.approvedRootBecomesAccessible` / `rejectedApplicationDoesNotAddRoot` / `approverFailureIsFailClosed` / `approvalIsNotCached` |
 | L3-26 | web_search 失败是工具错误 | provider 整体失败 → `ToolException`（`web_search 失败: …`）；**部分查询失败**才保留结果 + `note`；全部失败且零结果 → `web_search 失败: 全部查询都失败（…）: …`；结果带不可信标注 | ✅ `WebToolsTest.searchFailureIsAToolError` / `searchPartialFailureKeepsResults` / `searchAllQueriesFailedIsError` / `searchRendersProviderResults` |
-| L3-27 | SSRF 防线一（公网校验） | 回环 / 内网字面量 / IPv4 映射伪装 / 链路本地（云 metadata）全部拒绝；校验解析结果非 URL 文本 | ✅ `WebToolsTest.loopbackIsRejected` / `privateLiteralIpIsRejected` / `ipv4MappedLoopbackIsRejected` / `linkLocalIsRejected` + `publicAddressBoundaries`（CGNAT / ULA / 组播等边界） |
-| L3-28 | 抓取后端可注入 | 宿主自备 `Fetcher`（代理 / 内网）后能真拿到回执；截断状态由后端自报；`Fetcher` 必填（构造期 fail-fast） | ✅ `WebToolsTest.customFetcherIsInjectable` / `fetchRequiresFetcherAndUrl` |
+| L3-27 | SSRF 防线（公网校验） | 回环 / 内网字面量 / IPv4 映射伪装 / 链路本地（云 metadata）全部拒绝；校验解析结果非 URL 文本；注入 resolver 仍过公网校验 | ✅ `PinnedConnectorTest.resolveRejectsNonPublicAddresses` / `publicAddressClassification` + `PinnedConnectorTransportTest.injectedResolverStillEnforcesPublicAddresses` |
+| L3-28 | 抓取后端可注入 | 宿主自备 `Fetcher`（代理 / 内网）后能真拿到回执；**换掉后端就连防线一起换掉**（注入后端后私网地址不再被拦）；`Fetcher` 可为 `null`，未装配在**执行期** fail-closed | ✅ `WebToolsTest.customFetcherReplacesTheGuards` / `fetchRequiresFetcherAndUrl` |
 | L3-29 | deferred 下一轮生效 | activate 当轮清单不变；下一轮出现；未登记名忽略并说明；重名登记 fail-closed | ✅ `DeferredFlowTest.activationTakesEffectNextRound` + `DeferredToolsTest.deferredToolsAppearOnlyAfterActivation` / `activateIgnoresUnknownNames` / `duplicateDeferredRegistrationFails` / `noHelpersWithoutDeferredTools` |
 | L3-30 | 历史工具名并入兑底 | 模型直接调未激活 deferred 工具 → 执行成功并入激活集 | ✅ `DeferredFlowTest.historicalCallIsAdmitted` |
+| L3-31 | web_fetch 传输层（真 socket） | 出站报文头与 Host（含显式端口）；chunked / trailer / 非法长度；gzip；头名大小写不敏感；字节与字符（按码点）双上限；404 是结果；三类非文本 / 缺 Content-Type 拒绝；同源重定向 / 跨源只发一个请求 / 跳数上限 / 缺 Location；注入解析器仍拦私网；非 HTTP 响应报错 | ✅ `PinnedConnectorTransportTest`（22 条，真 socket + 注入 resolver/dialer） |
+| L3-32 | web_fetch 回执形状 | 6 键固定都在（空标题发空串、truncated 发 false）；非 2xx 是结果不是错误；HTML 转纯文本 + title；截断附注 | ✅ `WebToolsTest`（回执 5 条）+ `HtmlTextTest`（9 条） |
 
-> **G5 防线二/三/四的说明（诚实边界）**：地址钉住（PinnedConnector）与同源重定向的传输层行为需要真实网络才能端到端验证；当前测试覆盖的是**判定逻辑**（公网判定 / 同源检查在驱动层的拒绝路径），连接层钉住在代码路径上走 JDK `Proxy(DIRECT, InetSocketAddress(resolved))`，未做真机 rebinding 对拍。这条边界已登记进 `SELF-INVENTED.md`。
+> **G5 防线的说明（诚实边界）**：地址钉住与同源重定向的**真实网络**行为仍有环境边界：传输层已由 `PinnedConnectorTransportTest` 用**本地真 socket + 谎报解析器**端到端跑通（chunked / gzip / 上限 / 重定向全真跑），但这并不等于「对真公网主机做过 rebinding 对拍」——后者需要恶意的权威 DNS 服务器，当前环境不可行。这条边界仍登记在 `SELF-INVENTED.md` SI-22。
 
 ## 文案对照验收
 

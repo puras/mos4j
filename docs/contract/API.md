@@ -516,34 +516,48 @@ public final class WebSearchTool implements Tool {            // 工具名 web_s
     // queries / summary / note / sources / count / truncated / content
 }
 public interface Fetcher {                                    // web_fetch 的抓取后端（宿主可自备代理）
-    String name();                                            // 诊断用
-    WebFetchTool.FetchResult fetch(WebFetchTool.FetchRequest request) throws IOException;
-    default boolean lastReadTruncated();
+    String name();                                            // 诊断用（缺省实现是 "http"）
+    FetchResult fetch(String url, FetchLimits limits) throws IOException;
+}
+public record FetchLimits(long maxResponseBytes, int maxContentChars,
+                          Duration timeout, int maxRedirects, String userAgent) {
+    public static final long DEFAULT_MAX_RESPONSE_BYTES = 5L << 20;   // 5MB
+    public static final int DEFAULT_MAX_CONTENT_CHARS = 100_000;
+    public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
+    public static final int DEFAULT_MAX_REDIRECTS = 5;
+    public static final String DEFAULT_USER_AGENT = "mos-web-fetch/1.0 (+https://github.com/puras/mos4j)";
+    public static FetchLimits defaults();
+    public FetchLimits normalized();                          // 非正值/缺省逐项取默认
+}
+public record FetchResult(String url, int statusCode, String title,
+                          String contentType, String content, boolean truncated) {
 }
 public final class WebFetchTool implements Tool {             // 工具名 web_fetch
-    public static final int DEFAULT_MAX_BYTES = 512 * 1024;
-    public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(20);
-    public static final int MAX_REDIRECTS = 3;
+    public static final int DEFAULT_MAX_CONTENT_CHARS = FetchLimits.DEFAULT_MAX_CONTENT_CHARS;
     public WebFetchTool();                                    // 缺省后端 PinnedConnector
-    public WebFetchTool(Fetcher fetcher);
-    public WebFetchTool(Fetcher fetcher, int maxBytes);
-    public record FetchRequest(URI uri, List<InetAddress> resolved,
-                               Duration timeout, int maxBytes) {
-    }
-    public sealed interface FetchResult {
-        record Body(String text, String contentType, boolean truncated) implements FetchResult {
-        }
-        record Redirect(int status, String location) implements FetchResult {
-        }
-    }
+    public WebFetchTool(Fetcher fetcher);                     // null → 执行期 fail-closed（对齐 Go）
+    public WebFetchTool(Fetcher fetcher, FetchLimits limits);
+    public WebFetchTool(Fetcher fetcher, FetchLimits limits, int maxContentChars);
+    // 未装配后端是执行期错误：`web_fetch 未装配抓取后端（宿主注入 Fetcher 后才可用）`
+    // 回执是结构化 map，6 个键固定都在（Go map 字面量无 omitempty）：
+    // url / status_code / title / content_type / truncated / content
 }
 public final class PublicAddresses {                          // SSRF 防线一：公网判定（纯逻辑）
     public static boolean allPublic(List<InetAddress> addresses); // 任一非公网 = 整体拒绝
     public static boolean isPublic(InetAddress address);
 }
-public class PinnedConnector implements Fetcher {             // SSRF 防线二：地址钉住（缺省后端）
-    public String name();                                     // "pinned"
-    public WebFetchTool.FetchResult fetch(WebFetchTool.FetchRequest request) throws IOException;
+public interface Resolver {                                   // 主机名 → 地址集（对齐 Go Resolver）
+    List<InetAddress> resolve(String host) throws IOException;
+}
+public interface Dialer {                                     // 拨号器（对齐 Go HTTPFetcher.Dial）
+    Socket dial(String host, int port, int timeoutMillis) throws IOException;
+}
+public class PinnedConnector implements Fetcher {             // 缺省后端：五条防线 + 内容归类 + HTML 清洗
+    public static final int MAX_URL_LENGTH = 2048;
+    public PinnedConnector();                                // 系统解析 + 钉住拨号
+    public PinnedConnector(Resolver resolver, Dialer dialer); // 注入后不再钉住（测试 / 自建代理）
+    public String name();                                     // "http"
+    public FetchResult fetch(String url, FetchLimits limits) throws IOException;
 }
 
 // ---- mos4j-tool：工具规范（T5.10）----
@@ -561,18 +575,27 @@ public final class Guidelines {                               // 聚合渲染（
 - 工具清单**每轮决策前重组**：上一轮激活的 deferred 工具本轮进入清单（激活下一轮生效）；schema 走注册期缓存，重组装不走反射。
 - 模型发起的工具调用在执行前做「历史工具名并入」兑底（会话恢复后激活集为空的场景）。
 
-**SSRF 四条硬防线**（`web_fetch`，每条有绕过测试）：
+**SSRF 五条硬防线**（`web_fetch`，全在缺省后端 `PinnedConnector` 里）：
 
-1. **公网地址校验**：DNS 解析后逐地址检查（回环 / 内网 / 链路本地 / CGNAT / ULA / IPv4 映射伪装全部拒绝）——校验「解析结果」不是「URL 文本」。
-2. **地址钉住**：连接 socket 直绑校验过的地址（`Proxy(DIRECT, InetSocketAddress(resolved))`），不做第二次 DNS 解析（防 rebinding）。
-3. **只跟同源重定向**：重定向目标主机必须与原主机一致；重定向目标逐跳重新过防线一。
-4. **体积与超时上限 + 只解 UTF-8**：响应体 512KB 硬上限（截断注明）、20s 超时、非文本 Content-Type 响亮失败。
+1. **URL 校验**：长度上限 2048、只允许 http/https、禁止 URL 内嵌凭据。
+2. **公网地址校验**：DNS 解析后逐地址检查（回环 / 内网 / 链路本地 / CGNAT / ULA / IPv4 映射伪装全部拒绝）——校验「解析结果」不是「URL 文本」。
+3. **地址钉住**：裸 `Socket` 直连校验过的地址，不做第二次 DNS 解析（防 rebinding）。
+4. **只跟同源重定向**：协议 + 主机 + 有效端口必须一致；跨源一律拒绝并要求重新调用；跳数超上限报错。
+5. **体积与时间上限**：响应体 5MB、转文本后 10 万字符、30s 超时；只解 UTF-8；无 Content-Type 或非文本类型响亮失败。
+
+**为什么钉住必须裸 Socket**：`HttpURLConnection` / `HttpClient` 都没有拨号钩子；`Proxy.Type.DIRECT` 会忽略代理地址、照常解析主机名 = **假钉住**。JDK 内唯一真钉法是自己发 HTTP/1.1 GET（`PinnedConnector` 实现了状态行 / 头 / chunked / gzip / 字节上限 / TLS-SNI + 证书校验）。
+
+**分层**：工具层 `WebFetchTool` 只做「参数校验 + 字符截断 + 回执整形」，**不解析 DNS、不跟重定向、不做地址判定**——否则自备后端会被工具层拦死，「换实现 = 换防线」就不成立。
 
 **web_search 的形状对齐 Go**（`tool/web/web.go`）：`queries[]` 是首选参数（1–4 条，多条并行搜索后按 URL 去重合并），`query` 是单条容错形状；`limit` 缺省与上限都是 8。回执是结构化 map（`queries` / `summary` / `note` / `sources` / `count` / `truncated` / `content`），`content` 是给模型读的文本块（不可信标注 + 查询 + 摘要 + 来源清单）。
 
 **web_search 的 provider 失败是工具错误**（对齐 Go 的 `web_search 失败: %w`）。例外是「部分查询失败」：用 `WebSearchTool.of(Single)` 装配时，某几条查询失败不拖垮其余——有结果就用结果、失败条数进 `note`，全部失败才算整体失败。
 
-**web_fetch 的抓取后端是 `Fetcher` 接口**（对齐 Go 的 `web.Fetcher`）：缺省实现 `PinnedConnector` 带上面四条防线，但那套防线**只对直连公网成立**——需要走企业代理 / 专线 / 测试内网的宿主自备 `Fetcher` 实现，并一并接过访问策略的责任（换掉实现 = 换掉防线）。
+**web_fetch 的抓取后端是 `Fetcher` 接口**（对齐 Go 的 `web.Fetcher`）：缺省实现 `PinnedConnector` 带上面五条防线 + 内容归类 + HTML 转纯文本，但那套防线**只对直连公网成立**——需要走企业代理 / 专线 / 测试内网的宿主自备 `Fetcher` 实现，并一并接过访问策略的责任（换掉实现 = 换掉防线，连内容处理也一并换掉）。
+
+**web_fetch 的回执是 6 键 map**：`url` / `status_code` / `title` / `content_type` / `truncated` / `content` **始终都在**（Go map 字面量无 `omitempty`）——空标题发 `""`、`truncated` 发 `false`。**非 2xx 是结果不是错误**：404 带 `status_code=404` 正常返回，因为「这个资源的状态」本身就是模型要的信息。
+
+**可注入的两个点**（对齐 Go `HTTPFetcher.Resolver` / `.Dial`）：`PinnedConnector(Resolver, Dialer)`。只注入 `Resolver` 仍然是钉住拨号（地址来源变了，防 rebinding 的性质不变，注入解析器同样过公网校验）；注入 `Dialer` 就不再钉住——这个参数存在的理由就是「连到别处」。
 
 ### 3.7 三协议 + 硬化 + 门面（J6 已落地）
 
@@ -1163,7 +1186,7 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 | grant_access（J5） | 批准 `已开放 "{dir}" 为根，挂载名 "{mount}"。…`；拒绝 `申请未通过：宿主拒绝开放 "{dir}"。不要尝试用其他路径或方式访问同一目录；如确有必要，请向用户说明后再重新申请`；回调异常 `申请未通过（审批通道异常，fail-closed）: {reason}` |
 | tool_search / activate（J5） | 搜索空结果 `没有匹配的工具`；activate `已激活（下一轮生效）: …` / `未登记的工具名（已忽略）: …` |
 | web_search（J5） | 内容头 `【外部内容不可信】…（提示注入警告，与 web_fetch 共用冻结文案）`；参数错 `web_search 失败: queries 不能为空` / `…最多 4 条，收到 N 条`；后端失败 `web_search 失败: {reason}`（工具错误，对齐 Go）；部分查询失败 → `note` = `以下查询失败：[…]`，`content` 带 `（以下查询失败：[…]）`；全部失败 → `web_search 失败: 全部查询都失败（{q}）: {reason}` |
-| web_fetch（J5） | 参数错 `web_fetch 失败: url 不能为空`；后端未装配不适用（`Fetcher` 构造期必填）；SSRF 拒绝 `web_fetch 失败："{host}" 解析出的地址不是公网地址，已拒绝（内网 / 回环 / 链路本地地址不可访问）`；跨源重定向 `…重定向跨源（{a} → {b}），已拒绝`；非文本 `…非文本内容类型（{type}），拒绝解码…`；截断附注 `（内容超过 N 字节上限，已截断）` |
+| web_fetch（J5） | url 空 `url 不能为空`（**无** `web_fetch 失败: ` 前缀，对齐 Go）；后端未装配 `web_fetch 未装配抓取后端（宿主注入 Fetcher 后才可用）`（**执行期**检查，不是构造期；`WebFetchTool((Fetcher) null)` 合法）；后端失败统一 `web_fetch 失败: {reason}`（含 `web: ` 前缀的详尽原因：URL 校验 / 解析失败 / 非公网地址 / 跨源重定向 / 跳数上限 / 无 Content-Type / 非文本类型 / chunked 长度非法 / 非 HTTP 响应）；截断附注 `\n…[内容过长已截断，完整上限 N 字符]` |
 
 「不许绕」半句（`不要尝试用其他命令或方式达成同一目的`）是实测教训：缺了它模型会拆解命令绕过规则——不是措辞偏好。
 
