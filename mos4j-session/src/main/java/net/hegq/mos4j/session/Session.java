@@ -78,7 +78,7 @@ public final class Session {
         synchronized (lock) {
             Event filled = new Event(seq + 1, event.kind(), event.turn(),
                     event.time() == null || event.time().isEmpty() ? now() : event.time(),
-                    event.text(), event.reasoning(), event.toolCalls(), event.toolCall(),
+                    event.text(), event.reasoning(), event.finishReason(), event.toolCalls(), event.toolCall(),
                     event.toolResult(), event.usage(), event.reason(), event.approval(),
                     event.skill(), event.compaction(), event.error());
             if (persist != null) {
@@ -449,7 +449,7 @@ public final class Session {
         synchronized (lock) {
             Event filled = new Event(seq + 1, event.kind(), event.turn(),
                     event.time() == null || event.time().isEmpty() ? now() : event.time(),
-                    event.text(), event.reasoning(), event.toolCalls(), event.toolCall(),
+                    event.text(), event.reasoning(), event.finishReason(), event.toolCalls(), event.toolCall(),
                     event.toolResult(), event.usage(), event.reason(), event.approval(),
                     event.skill(), event.compaction(), event.error());
             seq = filled.seq();

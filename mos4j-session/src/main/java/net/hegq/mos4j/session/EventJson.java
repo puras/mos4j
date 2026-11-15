@@ -15,6 +15,7 @@ import net.hegq.mos4j.model.Usage;
  * seq/kind/time          无条件输出
  * turn                   0 省略
  * text/reasoning/reason/error   空串省略
+ * finishReason           空串省略（对齐 Go 的 omitempty）
  * toolCalls/toolCall/toolResult/usage/approval/compaction   nil 省略
  * toolResult.isError     false 省略
  * compaction.tokensBefore 0 省略
@@ -44,6 +45,9 @@ public final class EventJson {
             gen.writeStringProperty("time", value.time() == null ? "" : value.time());
             writeString(gen, "text", value.text());
             writeString(gen, "reasoning", value.reasoning());
+            // 停止原因一并留痕：截断的正文照样交付，但日志要能分出「说完的」与
+            // 「被切开的」（length/max_tokens）。对齐 Go c610f9f。
+            writeString(gen, "finishReason", value.finishReason());
             if (value.toolCalls() != null && !value.toolCalls().isEmpty()) {
                 gen.writeName("toolCalls");
                 gen.writeStartArray();

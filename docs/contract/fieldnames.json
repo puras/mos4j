@@ -1,9 +1,9 @@
 {
-  "_comment": "MoS4J 事件与载荷字段名冻结清单（T0.4 一次性抽取自 Go 参考仓库，之后不随 Go 演进重抽）。守护测试 FieldNameContractTest 的基线。；J7 追加 skill 载荷 5 条（skill/name/description/dir/missingAllowed），经批准并入",
+  "_comment": "MoS4J 事件与载荷字段名冻结清单（T0.4 一次性抽取自 Go 参考仓库，之后不随 Go 演进重抽）。守护测试 FieldNameContractTest 的基线。；J7 追加 skill 载荷 5 条（skill/name/description/dir/missingAllowed），经批准并入；2026-11-15 追加 finishReason 1 条（对齐 Go c610f9f），经批准并入",
   "_source": "参考仓库 ../mos（只读）；范围：session/*.go, llm/model.go, agent/hook/*.go, agent/approval/*.go",
   "_extracted": "2026-11-03",
-  "_count": 80,
-  "_names_sha256": "3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c",
+  "_count": 81,
+  "_names_sha256": "ee43c9ddf6a9cf0c3242d38f42970e3caa1d048441ba19c7f41bb4238042c8cc",
   "fields": [
     {
       "file": "llm/model.go",
@@ -377,6 +377,14 @@
       "file": "session/session.go",
       "tag": "error,omitempty",
       "name": "error",
+      "options": [
+        "omitempty"
+      ]
+    },
+    {
+      "file": "session/session.go",
+      "tag": "finishReason,omitempty",
+      "name": "finishReason",
       "options": [
         "omitempty"
       ]

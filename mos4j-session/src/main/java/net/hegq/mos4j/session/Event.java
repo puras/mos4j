@@ -26,6 +26,8 @@ import java.util.List;
  * @param time       时间戳（RFC3339 UTC 文本）
  * @param text       文本（user / assistant）
  * @param reasoning  推理内容（assistant）
+ * @param finishReason 模型停止原因（assistant）：openai stop/length/tool_calls；
+ *                    anthropic end_turn/max_tokens/tool_use；gemini 已转小写
  * @param toolCalls  工具调用列表（assistant）
  * @param toolCall   单次工具调用（tool/call）
  * @param toolResult 工具结果（tool/result）
@@ -44,6 +46,7 @@ public record Event(
         @JsonProperty("time") String time,
         @JsonProperty("text") String text,
         @JsonProperty("reasoning") String reasoning,
+        @JsonProperty("finishReason") String finishReason,
         @JsonProperty("toolCalls") List<ToolCall> toolCalls,
         @JsonProperty("toolCall") ToolCall toolCall,
         @JsonProperty("toolResult") ToolResult toolResult,
@@ -78,6 +81,7 @@ public record Event(
         private String time;
         private String text;
         private String reasoning;
+        private String finishReason;
         private List<ToolCall> toolCalls;
         private ToolCall toolCall;
         private ToolResult toolResult;
@@ -109,6 +113,12 @@ public record Event(
 
         public Builder reasoning(String reasoning) {
             this.reasoning = reasoning;
+            return this;
+        }
+
+        /** 停止原因（assistant 事件）：截断的正文照样交付，日志要能分出「说完的」与「被切开的」。 */
+        public Builder finishReason(String finishReason) {
+            this.finishReason = finishReason;
             return this;
         }
 
@@ -158,7 +168,7 @@ public record Event(
         }
 
         public Event build() {
-            return new Event(0L, kind, turn, time, text, reasoning, toolCalls, toolCall,
+            return new Event(0L, kind, turn, time, text, reasoning, finishReason, toolCalls, toolCall,
                     toolResult, usage, reason, approval, skill, compaction, error);
         }
     }

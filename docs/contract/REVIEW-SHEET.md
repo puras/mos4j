@@ -48,7 +48,7 @@
 > **Go 差异补齐补记（2026-11-08）**：13 项差异（#1…#13）**生产代码 + 定向用例全部落地**，文档登记完成
 > （[`GO-DIFF.md`](GO-DIFF.md) / [`API.md`](API.md) §3.15 / [`SELF-INVENTED.md`](SELF-INVENTED.md) SI-43…SI-51 /
 > [`INVARIANT-TESTS.md`](INVARIANT-TESTS.md) §3.9 / [`INVARIANT-TEST-MAP.md`](INVARIANT-TEST-MAP.md) F-14…F-23）；
-> 机械基线（六模块合并 + web 工具与能力位对齐 + web_fetch 分层重做 + SSRF 内嵌地址修复 + 流式出口与 Gemini 结构化输出后，2026-11-14 实跑）：默认 **922 / 0 / 7**、含 starter **946 / 0 / 7**、`-Pexamples` **948 / 0 / 7**、`-Pexamples,mcp` **951 / 0 / 7**（示例自身 26 / 29 条）。
+> 机械基线（六模块合并 + web 工具与能力位对齐 + web_fetch 分层重做 + SSRF 内嵌地址修复 + 流式出口与 Gemini 结构化输出 + 空回复 fail-closed 与 finishReason 落日志后，2026-11-15 实跑）：默认 **930 / 0 / 7**、含 starter **954 / 0 / 7**、`-Pexamples` **956 / 0 / 7**、`-Pexamples,mcp` **959 / 0 / 7**（示例自身 26 / 29 条）。
 
 ---
 
@@ -74,7 +74,7 @@
 | 【代码】 | `mos4j-session/.../Session.java`（`append` 唯一写入口，`seq` 统一分配）、`mos4j-session/.../JsonlPersistence.java`（只 append）、`mos4j-session/.../Projection.java`（自愈在投影层） |
 | 【测试】 | `L2ScenariosTest.logIsNotRewritable`、`SessionTest.eventsReturnsDefensiveCopy`、`ProjectionTest`（L2-5/6/7/8）、`JsonlTruncationFuzzTest`（尾部半行可丢） |
 | 【门】 | 【语料】`fieldnames.json` 冻结清单 + `FieldNameContractTest` |
-| **判定** | ✅ 预填：建议通过 —— 冻结清单 **80 条 / 71 个唯一名称**（`3d35911d…`）有双层守护；`Session` 的 `append` 是唯一写入口、`events()` 返回防御性拷贝（`SessionTest` 7 条）；尾部半行可丢由 `JsonlTruncationFuzzTest` 覆盖。J7/J8 新增事件（`skill/activate`、`skill/allowed-tools-mismatch`）同样走 `append`，清单已升版复核。<br>人工：☐ 通过　☐ 不通过（违反的契约句：____________）　☐ 需讨论：____________ |
+| **判定** | ✅ 预填：建议通过 —— 冻结清单 **81 条 / 72 个唯一名称**（`ee43c9dd…`）有双层守护；`Session` 的 `append` 是唯一写入口、`events()` 返回防御性拷贝（`SessionTest` 7 条）；尾部半行可丢由 `JsonlTruncationFuzzTest` 覆盖。J7/J8 新增事件（`skill/activate`、`skill/allowed-tools-mismatch`）同样走 `append`，清单已升版复核；2026-11-15 又并入 `finishReason` 1 条（GO-DIFF #24，经批准）。<br>人工：☐ 通过　☐ 不通过（违反的契约句：____________）　☐ 需讨论：____________ |
 
 ### I3 审计不变式（错误只可加重不可减轻）
 
@@ -221,7 +221,7 @@
 | SI-43 | 子代理集**装配期固定**（不做运行期热加载）+ 清单预算降级（先丢描述再丢条目） | 子代理是「角色」不是「说明书」——热换角色等于热换执行语义 | ✅ 建议接受（已落地：`SubAgentCatalog.load(...)` 装配期一次 + `render()` 纯函数三级降级 + 如实披露省略数量；守护：`SubAgentCatalogTest` 12 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-44 | 子代理回执**固定 JSON 结构**（`{status, summary, findings, error}`）+ 非 JSON 降级为 `summary` | 要让「子代理失败也是普通工具结果」机械可测，结构必须固定 | ✅ 建议接受（已落地：`SubAgentReceipt.parse(...)` + `SubAgentStatus`（wire 值小写）+ 坏回执转 `status=error`；守护：`SubAgentToolTest` 11 条 + `SubAgentToolsTest` 12 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-45 | 「无可续」用 **checked** `NothingToResumeException`（Go 用哨兵错误） | unchecked 异常容易被漏接（漏接 = 那一轮被静默收尾） | ✅ 建议接受（已落地：`ResumeOptions` + `NothingToResumeException` + `LoopDriver.resume(...)`；无可续时**保持挂起**不写 `turn/end`；守护：`ResumeTest` 9 条）｜☐接受 ☐需改 ☐需讨论 |
-| SI-46 | 审批先验**不新增 `reusedFrom` 字段**（复用时签发新 id，旧 id 写进 `approval/asked.reason`） | 事件字段清单已冻结（80 条 / 71 名），加字段等于改冻结基线 | ✅ 建议接受（已落地：`ApprovalPrior` + `SessionApprovalPrior` + `Texts.priorReused(...)`；只有 `APPROVED`/`REJECTED` 可复用；未装通道仍 fail-closed；守护：`SessionApprovalPriorTest` 9 条 + `ApprovalPriorTest` 6 条）｜☐接受 ☐需改 ☐需讨论 |
+| SI-46 | 审批先验**不新增 `reusedFrom` 字段**（复用时签发新 id，旧 id 写进 `approval/asked.reason`） | 事件字段清单已冻结（基线 81 条 / 72 名），加字段等于改冻结基线 | ✅ 建议接受（已落地：`ApprovalPrior` + `SessionApprovalPrior` + `Texts.priorReused(...)`；只有 `APPROVED`/`REJECTED` 可复用；未装通道仍 fail-closed；守护：`SessionApprovalPriorTest` 9 条 + `ApprovalPriorTest` 6 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-47 | 会话派生读是**纯读**（不写日志 / 不改状态 / 不推进序号 / 不新增事件类型） | 派生做成「顺手补一条事件」→ 日志不再是纯事实 | ✅ 建议接受（已落地：`Session.pendingApprovals/approvalOutcome/approvalDecision/interruptedTurn/hangingCalls` + `HangingCall`；空 call id 不算悬空；同 id 答过就不算悬空；守护：`SessionDerivationTest` 8 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-48 | 协议注册表用 `Map<String, String>` 配置形状（Go 的 `map[string]string`） | 改成结构体或 `Map<String,Object>` → 跨语言配置不能直接搬 | ✅ 建议接受（已落地：`ModelRegistry` 只做「名字 → 工厂」映射、生产裸 `ChatModel`、未知名字 fail-closed 并列已注册名；守护：`ModelRegistryTest` 8 条）｜☐接受 ☐需改 ☐需讨论 |
 | SI-49 | 提示词构建器**双入口互斥** + 框架在宿主 Builder 的**副本**上装配 | 直接改宿主手里的 Builder → 宿主复用自己那份时被塞进框架分节 | ✅ 建议接受（已落地：`Config.prompt(...)` / `Mos4j.Builder.prompt(...)`；整串与分节互斥、空白整串按未提供；同名段冲突明确报错；老整串路径仍可用；守护：`PromptBuilderTest` 6 条）｜☐接受 ☐需改 ☐需讨论 |
@@ -323,7 +323,7 @@
 |---|---|
 | 引用存在性（脚本核对） | 本表内 **41 条 `XxxTest.方法` 引用全部存在**（去重 37 条；脚本按源码里的方法签名逐条比对；另有 `*.java` 是文件名引用、`ToolCall.args` 是字段引用，均非方法引用）；**【代码】块里的仓库内路径全部存在**（按「仓库根相对」与「`docs/contract/` 相对」两种基准解析；`mos4j-xxx/.../Xxx.java` 是省略写法，按末段文件名在仓库内定位；Go 参考侧路径 `llm/...`、`sandbox/...` 不在本仓库，不参与该检查） |
 | 测试计数复核 | 表内写的计数与实际 `@Test` 数一致：`ObserveGateTest` 11 / `SandboxedFsTest` 18 / `RootSetTest` 13 / `CompactionBudgetTest` 7 / `CompactionCutPointTest` 3 / `PreviousSummaryTest` 3 / `ContextFlowTest` 8 / `UsageJsonTest` 4 / `ShellToolTest` 8 / `LocalRunnerTest` 14 / `ExecPathSecurityTest` 25 / `SecurityFlowTest` 8 / `GuardBusTest` 7 / `BoundaryRulesTest` 7 / `FileToolsTest` 30 / `ExecPathTest` 15 / `L1OpenAiScenariosTest` 5 / `L1AnthropicScenariosTest` **14** / `L1GeminiScenariosTest` **10** / `OpenAiChatModelTest` **16**；`@Disabled` = 0（三协议语料 `@Disabled` 已归零） |
-| 机械门（2026-11-14，**六模块合并 + Go 差异 18 项补齐 + web 工具与能力位对齐 + web_fetch 分层重做 + SSRF 内嵌地址修复 + 流式出口与 Gemini 结构化输出后**） | 默认 reactor **922 通过 / 0 失败 / 7 跳过**（6 个测模块，109 个测试类）；`-Pstarter` **946 / 0 / 7**（7 个测模块）；`-Pexamples` **948 / 0 / 7**（8 个示例模块，示例自身 26 条）；`-Pexamples,mcp` **951 / 0 / 7**（示例自身 29 条）；6 个 SDK 模块 + starter + 8 个示例模块 `dependency:analyze` 无告警；C6（`src/main` + `src/test`）spring=0、regex=0；裸 NUL=0；文档相对链接 0 断链；字段清单两份副本逐字节一致（`aeb48e08…`）。日志：`.j7log2/r8-default.log`、`.j7log2/r8-starter.log`、`.j7log2/r9-examples.log`、`.j7log2/r9-examples-mcp.log`（`.j7log2/` 为本地临时目录，已移出 Git 索引并加入 `.gitignore`，不属交付物） |
+| 机械门（2026-11-15，**六模块合并 + Go 差异 18 项补齐 + web 工具与能力位对齐 + web_fetch 分层重做 + SSRF 内嵌地址修复 + 流式出口与 Gemini 结构化输出 + 空回复 fail-closed + finishReason 落日志**） | 默认 reactor **930 通过 / 0 失败 / 7 跳过**（6 个测模块，109 个测试类）；`-Pstarter` **954 / 0 / 7**（7 个测模块）；`-Pexamples` **956 / 0 / 7**（8 个示例模块，示例自身 26 条）；`-Pexamples,mcp` **959 / 0 / 7**（示例自身 29 条）；6 个 SDK 模块 + starter + 8 个示例模块 `dependency:analyze` 无告警；C6（`src/main` + `src/test`）spring=0、regex=0；裸 NUL=0；文档相对链接 0 断链；字段清单两份副本逐字节一致（`a5938d52…`，81 条 / 72 个唯一名）。日志：`.j7log2/r10-default.log`、`.j7log2/r10-starter.log`、`.j7log2/r10-examples.log`、`.j7log2/r10-examples-mcp.log`（`.j7log2/` 为本地临时目录，已移出 Git 索引并加入 `.gitignore`，不属交付物） |
 | 本轮新增的守护用例 | 上一批（Q1/Q2′/Q4/Q5）：`PathScopeRuntimeTest` 11 / `Mos4jTest` 14 / `Mos4jProtocolKnobsTest` 5 / `DynamicPathScopeTest` 2 / `ReActDriverTest` 8 / starter `Mos4jStarterKnobsTest` 5；**能力缺口收口批**：`PolicyVisibilityTest` 7 / `ChatModelDecoratorsTest` 11 / `ModelCatalogTest` 9 / `AgentCloseTest` 4 / `McpAuthTest` 5 / `McpResourceToolsTest` 8 / `McpPolicyIntegrationTest` 3 / `McpKitWiringTest` 4 / `ToolContractTest` 的 MCP 资源工具冻结断言 1；**能力缺口收尾批（2026-11-07）**：`McpDeferredVisibilityTest` 2 / `McpResultProjectionTest` 9 / `McpHttpServerE2ETest` 3 / `MainTest.skillsDir_isWiredIntoTheSession` 1 / `SkillCatalogConcurrencyTest` 1；**Go 差异补齐批（2026-11-07，#5/#7/#9）**：`ContextFilesTest` 16 / `RootSetTest` 13 / `RootManagementTest` 3 / `DynamicPathScopeTest` 3 / `Mos4jTest` 19 / starter `Mos4jAutoConfigurationTest` 18；**Go 差异 13 项补齐批（2026-11-08）**：`SubAgentCatalogTest` 12 / `SubAgentToolsTest` 12 / `SubAgentToolTest` 11 / `SubAgentFlowTest` 7 / `ResumeTest` 9 / `SessionApprovalPriorTest` 9 / `ApprovalPriorTest` 6 / `SessionDerivationTest` 8 / `ModelRegistryTest` 8 / `PromptBuilderTest` 6 / `CancellationTokenCauseTest` 8 / `RuntimeKnobsTest` 5 / `CachingChatModelTest` 10 / examples 28 + `StubModelTest` 5；**web_fetch 全对齐批（2026-11-09）**：`PinnedConnectorTransportTest` 22（真 socket）/ `PinnedConnectorTest` **9** / `HtmlTextTest` 9 / `WebToolsTest` 回执重写 22 |
 | Go 侧实读 | **J8 批次期间完成，本轮未重读**（结论沿用）：`sandbox/seatbelt_darwin.go`（profile 形态与转义）、`sandbox/pathscope.go`（`deriveScope` / `effectiveScope` / `validateScope` / `writeOpen`）、`sandbox/seatbelt_darwin_test.go`（3 条用例，已对位为 Java 用例）、`sandbox/scope_dynamic_darwin_test.go`（动态 scope，→ Q2 缺口）、`llm/model.go`、`llm/gemini/gemini.go`（`require_finish` 逃生阀） |
 | 本轮**没有**复核的 | Go 侧**除上述文件外**的源码未重新逐行读（沿用 J2–J7 已完成的对拍结论与冻结语料）；「语义是否与 Go 一致」的最终判断仍属人工范畴 |
@@ -335,7 +335,7 @@
 ## 附：评审前建议跑一遍的命令
 
 ```bash
-# 全量构建 + 全部测试（默认 reactor 基线 922 通过 / 7 跳过；含按需 starter 为 946/7，含按需 examples 为 948/7，含 examples+mcp 为 951/7）
+# 全量构建 + 全部测试（默认 reactor 基线 930 通过 / 7 跳过；含按需 starter 为 954/7，含按需 examples 为 956/7，含 examples+mcp 为 959/7）
 MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B clean verify
 MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -Pstarter clean verify
 MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -Pexamples clean verify

@@ -774,3 +774,11 @@
   - **T19.4 用例**：`L1GeminiScenariosTest` +5（出站报文断言）/ `ReActDriverTest` +3 / `Mos4jProtocolKnobsTest` +1（门面穿透）/ `ChatExampleTest` +1（示例级端到端），并让 `StubModel.chatStream` 真推增量。
   - **T19.5 回归与文档**：四套 **922/946/948/951**（均为 0 失败 / 7 跳过）；GO-DIFF #23 新增 + #19 连带项更新、API.md 门面签名、CHANGELOG 已知边界、REVIEW-SHEET / MCP-STATUS / release.md 基线同步
   - **本批不做**：与**真实 Gemini 服务**对括（离线报文断言已达；真实服务冒烟整体仍缺 API key）；Gemini 反向缺 `REASONING` 能力位（Go 自己也不发 `ReasoningEffort`，无行为可对齐）
+- [x] **T20 对齐 Go v0.2.0 标签之后的三个行为修正**（2026-11-15）
+  - **T20.1 基准校正**：Java 实际对标的是 **Go HEAD（0.3.0 待发布）**，比 v0.2.0 标签高。v0.2.0 的 100 个非测试 `.go` 文件所代表的能力面 Java 已全覆盖；但标签之后的 26 个提交中有三处 Java 未跟上（其余如 SubAgent / Resume / 派生读 / WithCache 早已补齐）。同批复核确认：OpenAI 流式 `reasoning` 兜底（`1a38678`）Java 已有。
+  - **T20.2 `finishReason` 落日志（GO-DIFF #24，对齐 `c610f9f`）**：`Event` 加字段 + `Builder.finishReason(...)`；`EventJson` 按 `omitempty` 写（空串省略）；`Session.append`/`appendInMemory` 转手；`ReActDriver.appendAssistant` 从 `Action.finishReason()` 写入。**冻结清单经批准升版：80/71 → 81/72**（名字集合 `3d35911d…` → `ee43c9dd…`，文件字节 `aeb48e08…` → `a5938d52…`）。**不重抽整份清单**：重抽会带入 `session/derive.go` 4 条（SI-47 已登记语义）与 `reusedFrom`（SI-46 有意不并），只手工追加这一条。
+  - **T20.3 空回复 fail-closed（GO-DIFF #25，对齐 `ff229ec`）**：`!hasToolCalls()` 分支先判 `blankAnswer`（`strip()` 后为空且无调用）→ `turn/end{reason:"error"}` + 抛新增的 `NoAnswerException`（SI-55），**不记 completed**；详情带三样（只有思维链 / `finish_reason` / 无工具调用）。
+  - **T20.4 空回复不进投影（GO-DIFF #26）**：`Projection` 的 `ASSISTANT` 分支命中 `isBlankAnswer` 则 `continue`；**`lastAssistantSeq` 仍推进**（合成回执要继承它）。有工具调用的空正文 assistant **照常投影**（否则 `tool/result` 成无主孤儿）。
+  - **T20.5 用例**：`ReActDriverTest` +5（16 条）/ `ProjectionTest` +3（9 条）/ 冻结清单四处守护同步（`FieldNameContractTest` 绝对基线、`FieldNamesTest` 键序列、`EventFieldNameGuardTest` 填键）。
+  - **T20.6 回归与文档**：四套 **930/954/956/959**（均 0 失败 / 7 跳过）；GO-DIFF #24–#26 汇总+明细、SI-55、API.md 清单计数、CHANGELOG 已知边界与行为变更、INVARIANT-TESTS §3.5 再升版补记 + 绝对基线行、REVIEW-SHEET / MCP-STATUS / release.md / README 基线同步。
+  - **本批不做**：跨语言回放（B25，需人做）；一次整份重抽清单（会夹带未批准的漂移）。

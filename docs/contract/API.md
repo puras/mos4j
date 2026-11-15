@@ -65,7 +65,7 @@
 
 **ContentPart**：`type` / `text` / `url` / `data` / `mime_type`（均部分 omitempty）。**Message**（投影消息）：`role` / `content` / `content_parts` / `tool_calls` / `tool_call_id` / `name` / `reasoning_content`。
 
-完整基线见 `fieldnames.json`（**80 条 tag / 71 个唯一字段名**，sha256 `3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c`；J7 并入 `skill`/`name`/`description`/`dir`/`missingAllowed` 5 条）。
+完整基线见 `fieldnames.json`（**81 条 tag / 72 个唯一字段名**，sha256 `ee43c9ddf6a9cf0c3242d38f42970e3caa1d048441ba19c7f41bb4238042c8cc`；J7 并入 `skill`/`name`/`description`/`dir`/`missingAllowed` 5 条，2026-11-15 并入 `finishReason` 1 条）。
 
 ---
 

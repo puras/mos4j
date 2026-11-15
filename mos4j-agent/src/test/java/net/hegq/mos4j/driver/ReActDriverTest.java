@@ -147,6 +147,16 @@ class ReActDriverTest {
         return new Response(Message.assistant(text), null, "stop");
     }
 
+    private static Response answerResponse(String text, String finishReason) {
+        return new Response(Message.assistant(text), null, finishReason);
+    }
+
+    /** 空回复：正文空、只有思维链、且被截断（推理模型收手的典型产物）。 */
+    private static Response blankResponse(String reasoning) {
+        return new Response(new Message(Role.ASSISTANT, "", null, null, null, null, reasoning),
+                null, "length");
+    }
+
     private static ToolRegistry registry(AtomicInteger executed) {
         ToolRegistry registry = new ToolRegistry();
         registry.register(FunctionTool.of("read", "读取文件", null, args -> {
@@ -367,5 +377,88 @@ class ReActDriverTest {
 
         assertEquals(1, model.streamCalls.get());
         assertEquals("思考", reply, "没装回调时最终作答仍应正常返回");
+    }
+
+    @Test
+    void blankAnswerIsNotRecordedAsCompleted() throws Exception {
+        // 推理模型把「下一步要做什么」写进思维链就收手：正文空、工具调用空。
+        // 若记 completed，宿主与用户都以为这一轮正常结束——日志里查不到任何错误。
+        ScriptedModel model = new ScriptedModel().respond(blankResponse("想了想但没说"));
+        Agent agent = Agent.of(Config.builder().model(model).build());
+        Session session = new Session("s1", null);
+
+        NoAnswerException thrown = assertThrows(NoAnswerException.class,
+                () -> agent.run(session, "干活"));
+
+        assertTrue(thrown.getMessage().contains("既无正文也无工具调用"), thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("只有思维链"), "详情要带上「只有思维链」: " + thrown.getMessage());
+        assertTrue(thrown.getMessage().contains("finish_reason=length"),
+                "详情要带上停止原因（length = 被截断）: " + thrown.getMessage());
+
+        Event turnEnd = session.events().stream()
+                .filter(e -> e.kind() == EventKind.TURN_END).findFirst().orElseThrow();
+        assertEquals("error", turnEnd.reason(), "空回复不能记成 completed");
+        assertTrue(turnEnd.error() != null && turnEnd.error().contains("既无正文也无工具调用"),
+                String.valueOf(turnEnd.error()));
+
+        // 事实照旧留痕：思维链与用量都在 assistant 事件里
+        Event assistant = session.events().stream()
+                .filter(e -> e.kind() == EventKind.ASSISTANT).findFirst().orElseThrow();
+        assertEquals("想了想但没说", assistant.reasoning(), "思维链是发生过的事实，必须留痕");
+    }
+
+    @Test
+    void whitespaceOnlyAnswerIsAlsoBlank() throws Exception {
+        // 只吐空白字符同样不算作答（不能因为「有 content 字段」就放行）
+        ScriptedModel model = new ScriptedModel().respond(answerResponse("   \n\t "));
+        Agent agent = Agent.of(Config.builder().model(model).build());
+
+        assertThrows(NoAnswerException.class, () -> agent.run(new Session("s1", null), "干活"));
+    }
+
+    @Test
+    void nonBlankAnswerStillCompletes() throws Exception {
+        // 反向护栏：正常作答不能被新判据误伤
+        ScriptedModel model = new ScriptedModel().respond(answerResponse("好"));
+        Agent agent = Agent.of(Config.builder().model(model).build());
+        Session session = new Session("s1", null);
+
+        assertEquals("好", agent.run(session, "干活"));
+        Event turnEnd = session.events().stream()
+                .filter(e -> e.kind() == EventKind.TURN_END).findFirst().orElseThrow();
+        assertEquals("completed", turnEnd.reason());
+    }
+
+    @Test
+    void finishReasonIsRecordedOnTheAssistantEvent() throws Exception {
+        // 截断的正文照样交付给用户（max-tokens 不是错误），但日志要能分出
+        // 「说完的」与「被切开的」——否则事后查不出「这条被切了」。
+        ScriptedModel model = new ScriptedModel().respond(answerResponse("半截话", "length"));
+        Agent agent = Agent.of(Config.builder().model(model).build());
+        Session session = new Session("s1", null);
+
+        assertEquals("半截话", agent.run(session, "干活"));
+
+        Event assistant = session.events().stream()
+                .filter(e -> e.kind() == EventKind.ASSISTANT).findFirst().orElseThrow();
+        assertEquals("length", assistant.finishReason(), "停止原因必须落日志");
+    }
+
+    @Test
+    void absentFinishReasonOmitsTheKey() throws Exception {
+        // Go 侧是 omitempty：没给就不出现键（不是发 "" 或 null）
+        ScriptedModel model = new ScriptedModel()
+                .respond(new Response(Message.assistant("好"), null, null));
+        Agent agent = Agent.of(Config.builder().model(model).build());
+        Session session = new Session("s1", null);
+
+        agent.run(session, "干活");
+
+        Event assistant = session.events().stream()
+                .filter(e -> e.kind() == EventKind.ASSISTANT).findFirst().orElseThrow();
+        assertNull(assistant.finishReason(), "没有停止原因时字段为 null");
+        assertFalse(tools.jackson.databind.json.JsonMapper.builder().build()
+                        .writeValueAsString(assistant).contains("finishReason"),
+                "序列化后不应出现 finishReason 键（对齐 Go omitempty）");
     }
 }

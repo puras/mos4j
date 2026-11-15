@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ProjectionTest {
 
     private static Event event(long seq, EventKind kind, String text, List<ToolCall> calls) {
-        return new Event(seq, kind, 0, "2026-11-03T00:00:00Z", text, null, calls, null,
+        return new Event(seq, kind, 0, "2026-11-03T00:00:00Z", text, null, null, calls, null,
                 null, null, null, null, null, null, null);
     }
 
@@ -67,7 +67,7 @@ class ProjectionTest {
     void answeredCallDoesNotGetReceipt() {
         List<Event> events = List.of(
                 assistant(1L, List.of(new ToolCall("call_1", "read", "{}"))),
-                new Event(2L, EventKind.TOOL_RESULT, 0, "2026-11-03T00:00:00Z", null, null, null, null,
+                new Event(2L, EventKind.TOOL_RESULT, 0, "2026-11-03T00:00:00Z", null, null, null, null, null,
                         new ToolResult("call_1", "文件内容", false), null, null, null, null, null, null));
 
         List<Message> messages = Projection.project(events);
@@ -81,7 +81,7 @@ class ProjectionTest {
         List<Event> events = List.of(
                 event(1L, EventKind.USER, "老问题", null),
                 assistant(2L, List.of(new ToolCall("call_1", "read", "{}"))),
-                new Event(3L, EventKind.COMPACTION, 0, "2026-11-03T00:00:00Z", null, null, null, null,
+                new Event(3L, EventKind.COMPACTION, 0, "2026-11-03T00:00:00Z", null, null, null, null, null,
                         null, null, null, null, null, new Compaction("摘要内容", 2L, 100), null));
 
         List<Message> messages = Projection.project(events);
@@ -99,12 +99,56 @@ class ProjectionTest {
         // 遮蔽线落在孤儿调用方之前 → 回执与调用方一起被遮蔽（同生共死）
         List<Event> events = List.of(
                 assistant(1L, List.of(new ToolCall("call_1", "read", "{}"))),
-                new Event(2L, EventKind.COMPACTION, 0, "2026-11-03T00:00:00Z", null, null, null, null,
+                new Event(2L, EventKind.COMPACTION, 0, "2026-11-03T00:00:00Z", null, null, null, null, null,
                         null, null, null, null, null, new Compaction("摘要", 5L, 0), null));
 
         List<Message> messages = Projection.project(events);
 
         assertEquals(1, messages.size(), "回执与调用方一起被遮蔽");
         assertTrue(messages.get(0).content().startsWith("[历史摘要]"));
+    }
+
+    @Test
+    void blankAssistantIsNotProjected() {
+        // 空回复不进投影：部分厂商会拒收「既无 content 也无 tool_calls」的
+        // assistant 消息，整段历史会被直接打回——一个空回复能把会话卡死。
+        // 日志不动：那条 assistant 事件是发生过的事实。
+        List<Event> events = List.of(
+                event(1L, EventKind.USER, "问题", null),
+                event(2L, EventKind.ASSISTANT, "", null),
+                event(3L, EventKind.ASSISTANT, "真回答", null));
+
+        List<Message> messages = Projection.project(events);
+
+        assertEquals(2, messages.size(), "空的 assistant 不进投影");
+        assertEquals(Role.USER, messages.get(0).role());
+        assertEquals("真回答", messages.get(1).content());
+    }
+
+    @Test
+    void whitespaceOnlyAssistantIsNotProjected() {
+        // 只有空白字符同样算「什么也没说」
+        List<Event> events = List.of(
+                event(1L, EventKind.USER, "问题", null),
+                event(2L, EventKind.ASSISTANT, "   \n\t ", null));
+
+        assertEquals(1, Projection.project(events).size());
+    }
+
+    @Test
+    void blankAssistantWithToolCallsIsStillProjected() {
+        // 反向护栏：正文空但**有工具调用**的 assistant 必须投影——
+        // 丢它会让随后的 tool/result 变成无主的孤儿回执，协议直接不合法。
+        List<Event> events = List.of(
+                event(1L, EventKind.USER, "问题", null),
+                event(2L, EventKind.ASSISTANT, "", List.of(new ToolCall("call_1", "read", "{}"))),
+                new Event(3L, EventKind.TOOL_RESULT, 0, "2026-11-03T00:00:00Z", null, null, null, null, null,
+                        new ToolResult("call_1", "文件内容", false), null, null, null, null, null, null));
+
+        List<Message> messages = Projection.project(events);
+
+        assertEquals(3, messages.size(), "user + assistant（带调用）+ tool/result");
+        assertEquals(Role.ASSISTANT, messages.get(1).role());
+        assertEquals("call_1", messages.get(1).toolCalls().get(0).id());
     }
 }

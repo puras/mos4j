@@ -59,7 +59,15 @@ public final class Projection {
                 }
                 case ASSISTANT -> {
                     state.flush();
+                    // 空回复不进投影：既无正文也无工具调用（推理模型把「下一步要做什么」
+                    // 写进思维链就收手的典型产物）——投给模型的历史里留着它，部分厂商
+                    // 会拒收「既无 content 也无 tool_calls」的 assistant 消息。
+                    // 日志不动：那条 assistant 事件是发生过的事实（思维链与用量都在里面）。
+                    // lastAssistantSeq 照旧推进：后面的合诚回执要继承它。
                     state.lastAssistantSeq = event.seq();
+                    if (isBlankAnswer(event)) {
+                        continue;
+                    }
                     state.out.add(new SeqMessage(event.seq(), new Message(Role.ASSISTANT, event.text(), null,
                             event.toolCalls(), null, null, event.reasoning())));
                     if (event.toolCalls() != null) {
@@ -101,6 +109,19 @@ public final class Projection {
         // 日志尾部的孤儿调用（进程中断残留）
         state.flush();
         return state.out;
+    }
+
+    /**
+     * 是否「什么也没说」：既无正文（空白算没有），也无工具调用。
+     *
+     * <p><b>为什么不投影它</b>：部分厂商拒收「既无 content 也无 tool_calls」的 assistant
+     * 消息，整段历史会被直接打回——一个空回复能把会话卡死。日志里保留它（事实），
+     * 只是不投给模型（派生）。
+     */
+    private static boolean isBlankAnswer(Event event) {
+        String text = event.text();
+        boolean blankText = text == null || text.strip().isEmpty();
+        return blankText && (event.toolCalls() == null || event.toolCalls().isEmpty());
     }
 
     /** 投影过程中的可变状态。 */

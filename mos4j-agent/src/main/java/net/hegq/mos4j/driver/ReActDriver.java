@@ -198,6 +198,13 @@ public final class ReActDriver implements LoopDriver {
 
             // 无工具调用 = 产出最终作答，收尾
             if (!action.hasToolCalls()) {
+                // fail-closed：**空回复不是「完成」**。正文空（只有思维链）时若照旧
+                // 记 completed，宿主与用户都以为这一轮正常结束——那种失败在日志里
+                // 没有错误、在界面上一切正常，是最难排查的一种。输出被截断
+                // （finish_reason=length）把正文切光时同样落在这里，一并拦下。
+                if (blankAnswer(action)) {
+                    return abort(session, turn, noAnswer(action));
+                }
                 // 取消优先于「完成」：宿主叫停后，本轮不再产出完成结果。
                 // 答案已经落在日志里（事实不丢），但宿主拿到的是取消异常而不是答案——
                 // 否则「叫停」会被静默吞掉（宿主以为停了，其实拿回了旧结果）。
@@ -352,11 +359,47 @@ public final class ReActDriver implements LoopDriver {
                 .turn(turn)
                 .text(action.content())
                 .reasoning(action.reasoningContent())
+                // 停止原因一并留痕：截断的正文照样交付，但日志要能分出「说完的」与
+                // 「被切开的」（length/max_tokens）。
+                .finishReason(action.finishReason())
                 .usage(action.usage());
         if (action.hasToolCalls()) {
             builder.toolCalls(action.toolCalls());
         }
         session.append(builder.build());
+    }
+
+    /**
+     * 判断这次决策「什么也没说」：既无正文（空白算没有），也无工具调用。
+     *
+     * <p>判据不能只看「有没有工具调用」——只看那一条时，半截轮次会被记成正常完成。
+     */
+    static boolean blankAnswer(Action action) {
+        if (action.hasToolCalls()) {
+            return false;
+        }
+        String content = action.content();
+        return content == null || content.strip().isEmpty();
+    }
+
+    /**
+     * 构造「模型没有给出最终答复」的错误：分类 + 可读详情。
+     *
+     * <p>详情带上**能帮人判断下一步**的三样：有没有思维链、结束原因
+     * （length = 输出被截断）、有没有工具调用——宿主据此提示「发继续」还是
+     * 「换模型」，而不是只显示一句「失败了」。
+     */
+    private static NoAnswerException noAnswer(Action action) {
+        StringBuilder detail = new StringBuilder("响应既无正文也无工具调用");
+        String reasoning = action.reasoningContent();
+        if (reasoning != null && !reasoning.isEmpty()) {
+            detail.append("（只有思维链）");
+        }
+        String finishReason = action.finishReason();
+        if (finishReason != null && !finishReason.isEmpty()) {
+            detail.append("；finish_reason=").append(finishReason);
+        }
+        return new NoAnswerException(detail.toString());
     }
 
     /**

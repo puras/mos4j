@@ -100,7 +100,9 @@
 - Linux / Windows 后端未验证 / 未实现。
 - 技能 `allowed-tools` 只诊断不生效（不造第二套安全真相）。
 - 评审表 `docs/contract/REVIEW-SHEET.md` 的逐行人工签字是发布前的最后一道门（115 条判定项，**111 条待签**）。
-- 相对 Go 参考实现的 **18 项能力缺口已补齐**（2026-11-14 第五轮补 #19 连带项与 #23）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
+- 相对 Go 参考实现的 **21 项能力缺口已补齐**（2026-11-15 第六轮补 #24/#25/#26：与 Go v0.2.0 之后三个提交对齐）；但**机器测试 ≠ 跨语言回放**——回放比对尚未做，登记为 B25（需人做）。
+- **空回复不再冒充完成**（2026-11-15，对齐 Go `ff229ec`）：模型这一轮既无正文（空白算无）又无工具调用时，本轮以 `turn/end{reason:"error"}` 收尾并抛 `NoAnswerException`（宿主可精确 `catch`），**不记 `completed`**。事实照旧留痕（assistant 事件的思维链与用量都在），但空回复**不进模型投影**（部分厂商拒收「既无 content 也无 tool_calls」的 assistant 消息，一个空回复能把会话卡死）。⚠️ 行为变更：以前这种轮次返回空串并记 `completed`。
+- **`finishReason` 落日志**（2026-11-15，对齐 Go `c610f9f`）：assistant 事件新增 `finishReason`（`omitempty`，未设置时键不出现），截断的正文照样交付但日志能分出「说完的」与「被切开的」。⚠️ **冻结字段清单由此变更**：80 条 / 71 个唯一名 → **81 条 / 72 个唯一名**（名字集合 SHA-256 `3d35911d…` → `ee43c9dd…`，文件字节 SHA-256 `aeb48e08…` → `a5938d52…`）。
 - **流式增量出口已打通**（2026-11-14）：`Mos4j.Builder.onChunk(Consumer<StreamChunk>)` / `Config.Builder.onChunk(...)` 现在能把增量交给宿主。此前 `RunContext.onChunk` 与驱动侧全通，但门面没有入口——宿主能开 `stream(true)` 却拿不到任何增量。⚠️ 仍在调用线程同步回调，慢消费者会拖慢决策。
 - **Gemini 结构化输出已实现**（2026-11-14）：`json_schema` → `responseMimeType=application/json` + `responseSchema`；`json_object` → 只发 MIME（对齐 Go。`name` 在 Gemini 协议无落点，不下发）。同时修正 `GenerationConfig` 把未设置字段发成 `null` 的问题（Go 全字段 `omitempty`）。仍未与真实 Gemini 服务对括。
 - **`web_fetch` 的真实公网验收已完成**（2026-11-09）：本机实测 `https://example.com/` 200 `text/html; charset=utf-8`（title=Example Domain）、`http://example.com/` 200、`httpbin.org/status/404` → 404 当结果、`httpbin.org/gzip` gzip 正常解、跨源重定向拒绝、`http://127.0.0.1:1/` 拒绝内网（均为预期）。Wikipedia 超时系**本机 DNS 污染**（`curl` 同样超时、`dig` 得 `31.13.88.169` / `2001::1`），不是代码缺陷。仍未验的：反爬拦截、重定向到 CDN、需客户端证书的站点。
@@ -108,7 +110,7 @@
 
 ### 机械门基线
 
-- 默认 reactor **922 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，109 个测试类）；`-Pstarter` **946 / 7**；`-Pexamples` **948 / 7**（示例自身 26 条）；`-Pexamples,mcp` **951 / 7**（示例自身 29 条）。
+- 默认 reactor **930 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，109 个测试类）；`-Pstarter` **954 / 7**；`-Pexamples` **956 / 7**（示例自身 26 条）；`-Pexamples,mcp` **959 / 7**（示例自身 29 条）。
 - 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
 
 ---
@@ -200,4 +202,4 @@
 
 - `PinnedConnectorTransportTest`（**22 条，真 socket**）：出站报文与 Host / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与码点双上限 / 404 / 三类非文本与缺 Content-Type / 同源与跨源重定向 / 跳数上限 / 注入解析器仍拦私网 / 非 HTTP 响应。
 - `PinnedConnectorTest` **9** / `HtmlTextTest` 9 / `WebToolsTest` 22（search 9 + fetch 13）。
-- `mos4j-tool` **315 → 358 → 359**；四套基线 **869/893/894/897 → 912/936/937/940 → 913/937/938/941 → 922/946/948/951**。
+- `mos4j-tool` **315 → 358 → 359**；四套基线 **869/893/894/897 → 912/936/937/940 → 913/937/938/941 → 922/946/948/951 → 930/954/956/959**。

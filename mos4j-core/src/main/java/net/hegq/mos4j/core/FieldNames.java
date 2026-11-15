@@ -26,6 +26,8 @@ public final class FieldNames {
     public static final String TIME = "time";
     public static final String TEXT = "text";
     public static final String REASONING = "reasoning";
+    /** 模型停止原因（assistant）：对齐 Go c610f9f，2026-11-15 经批准并入冻结清单。 */
+    public static final String FINISH_REASON = "finishReason";
     public static final String TOOL_CALLS = "toolCalls";
     public static final String TOOL_CALL = "toolCall";
     public static final String TOOL_RESULT = "toolResult";
@@ -59,7 +61,7 @@ public final class FieldNames {
      * <p>返回不可变视图——调用方修改它没有意义，字段名契约本身不可变。</p>
      */
     public static List<String> coreEventKeys() {
-        return List.of(SEQ, KIND, TURN, TIME, TEXT, REASONING, TOOL_CALLS, TOOL_CALL,
+        return List.of(SEQ, KIND, TURN, TIME, TEXT, REASONING, FINISH_REASON, TOOL_CALLS, TOOL_CALL,
                 TOOL_RESULT, USAGE, REASON, APPROVAL, COMPACTION, ERROR);
     }
 

@@ -99,17 +99,17 @@ class FieldNameContractTest {
     @Test
     void frozenListMatchesTheApprovedBaseline() {
         JsonNode root = frozenList();
-        assertEquals(80, root.get("fields").size(),
-                "字段条目数变了（批准基线 80 条）——字段名冻结清单变更须走 PR 评审并同步 docs/contract");
+        assertEquals(81, root.get("fields").size(),
+                "字段条目数变了（批准基线 81 条：J7 的 skill 5 条 + 2026-11-15 的 finishReason 1 条）——字段名冻结清单变更须走 PR 评审并同步 docs/contract");
 
         TreeSet<String> names = new TreeSet<>();
         root.get("fields").forEach(f -> names.add(f.get("name").asText()));
-        assertEquals(71, names.size(),
-                "唯一字段名数变了（批准基线 71 个）——字段名冻结清单变更须走 PR 评审并同步 docs/contract");
+        assertEquals(72, names.size(),
+                "唯一字段名数变了（批准基线 72 个）——字段名冻结清单变更须走 PR 评审并同步 docs/contract");
 
-        assertEquals("3d35911d810641c25b8ac0da032ac6f8c1d80dd90c240a4aafe5e95d4714912c",
+        assertEquals("ee43c9ddf6a9cf0c3242d38f42970e3caa1d048441ba19c7f41bb4238042c8cc",
                 sha256(String.join("\n", new ArrayList<>(names))),
-                "名字集合摘要变了（批准基线 3d35911d…）");
+                "名字集合摘要变了（批准基线 ee43c9dd…）");
     }
 
     /**

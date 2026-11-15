@@ -69,6 +69,7 @@ class EventFieldNameGuardTest {
                 .time("2026-11-05T00:00:00Z")
                 .text("文本")
                 .reasoning("推理")
+                .finishReason("stop")
                 .toolCalls(List.of(new ToolCall("call_1", "calculator", "{\"a\":1}")))
                 .toolCall(new ToolCall("call_1", "calculator", "{\"a\":1}"))
                 .toolResult(new ToolResult("call_1", "结果", true))

@@ -55,6 +55,9 @@
 | #21 | Go 的代理对码点解码静默变成 U+FFFD | Go 实现口径 | ⚠️ Java 原样保留实体（见 §3 #21） |
 | #22 | Go 的「内嵌 IPv4 的 IPv6 也按 IPv4 判」事实上是死代码（`embeddedIPv4` 返回 16 字节 → `isPublicIPv4` 首条 `v4[0]==0` 必中） | Go 实现瑕疵 | ⚠️ Java 对齐**可观测行为**（一律拒），不对齐注释意图（见 §3 #22） |
 | #23 | 流式增量对宿主的出口（`Config.OnChunk`） | 能力缺口 | ✅ 已对齐（`Mos4j.Builder.onChunk` / `Config.Builder.onChunk`，见 §3 #23） |
+| #24 | assistant 事件记模型停止原因 `finishReason` | 能力缺口 | ✅ 已对齐（Go `c610f9f`；冻结清单 80→**81** 条，见 §3 #24） |
+| #25 | 空回复不当成完成（`ErrNoAnswer` fail-closed） | 行为缺陷 | ✅ 已对齐（Go `ff229ec`；抛 `NoAnswerException`，见 §3 #25） |
+| #26 | 空回复不进模型投影 | 行为缺陷 | ✅ 已对齐（Go `ff229ec`；部分厂商拒收空 assistant，见 §3 #26） |
 
 > **编号说明**：#1–#10 是 2026-11-07 第一轮初查的编号；#11–#13 是同日逐行复核新增；#14 已在 SI-15 登记。
 > **#15 / #16 是 2026-11-08 第三次复核（出站报文抓包）发现的真缺口**：两者都是「声明了但没做到」，
@@ -65,6 +68,10 @@
 > **2026-11-08 二次复核补记**：#15 / #16 两项新增缺口已修复（出站报文抓包验证），详见 §3 末尾。
 > **2026-11-14 能力缺口复查补记**：#19 的连带项（Gemini `responseFormat`）与 #23（流式出口）已修复；
 > 两者都是「下层全部在位、宿主侧接不上」型缺口，#23 尤其严重——文档提了流式，宿主却找不到入口。
+> **2026-11-15 对 Go v0.2.0 标签之后的 26 个提交逐项复核补记**：#24–#26 是其中三个 Java 未跟上的行为修正
+> （`c610f9f`、`ff229ec`），三者同源：**日志要能分清「做完了」与「被切了/没说」**。同批复核中
+> OpenAI 流式 `reasoning` 兜底（`1a38678`）Java 已有（`OpenAiChatModel` 的 delta 映射），不列差异。
+> 已知未跟上的非行为项：`session/derive.go` 重抽会带入 4 条已在 SI-47 登记过的字段名，不重复入冻结清单。
 
 ---
 
@@ -266,6 +273,30 @@
 - **语义约束**：只在 `stream(true)` 时被调；每增量块一次；**在调用线程上同步执行**（阻塞会拖慢决策，耗时转交自行处理）；不装 = 增量丢弃、链路照走。
 - **子代理隔离**：Go 在 `subagent.go:107-108` 强制 `Stream=false` + `OnChunk=nil`；Java `DefaultSubAgentRunner` 本来就不开流（`.stream(false)`），无需额外置空。
 - **守护用例**：`ReActDriverTest` 3 条（`onChunkReceivesIncrementsWhenStreamIsOn` / `streamOffNeverCallsOnChunk` / `withoutOnChunkStreamingStillWorks`）、`Mos4jProtocolKnobsTest.onChunkReachesTheDriverThroughTheFacade`（门面穿透）、`ChatExampleTest.streamingRendersIncrements`（示例级端到端）。
+
+### #24 assistant 事件记模型停止原因 `finishReason`
+
+- **Go 证据**：`c610f9f`（`session/session.go` 新增 `FinishReason string \`json:"finishReason,omitempty"\``；`agent/driver/react/react.go` 的 `appendAssistant` 写入 `ev.FinishReason`）。同一提交还修了 OpenAI **非流式**路径漏带 `FinishReason` 的洞（Java 侧向已有，见 `OpenAiChatModel` 的 `new Response(..., finishReason)` 两处）。
+- **Go 语义**：截断的正文照样交付给用户（max-tokens 不是错误），但只凭正文分不出「说完的」与「被切开的」——记下停止原因，日志才查得出「这条被切了」。
+- **Java 落点**：`Event` record 加 `finishReason`（第 7 个分量）+ `Builder.finishReason(...)`；`EventJson` 按 Go `omitempty` 写（空串省略）；`Session.append` / `appendInMemory` 转手该字段；`ReActDriver.appendAssistant` 从 `Action.finishReason()` 写入。
+- **冻结清单变更（经批准）**：80 条 / 71 个唯一名 → **81 条 / 72 个唯一名**；名字集合 SHA-256 `3d35911d…` → `ee43c9dd…`；文件字节 SHA-256 `aeb48e08…` → `a5938d52…`。**不重抽整份清单**：重抽会带入 `session/derive.go` 的 4 条（已在 SI-47 登记过语义）与 `reusedFrom`（有意不并），因此只手工追加这一条，`FieldNameContractTest` 的绝对基线同步到新值。
+- **守护用例**：`ReActDriverTest.finishReasonIsRecordedOnTheAssistantEvent` / `absentFinishReasonOmitsTheKey`（断言序列化后根本没有这个键）、`EventFieldNameGuardTest`（真实 JSON 键集合比对）、`FieldNameContractTest`（81/72/`ee43c9dd…`）、`FieldNamesTest`。
+
+### #25 空回复不当成完成（`ErrNoAnswer` fail-closed）
+
+- **Go 证据**：`ff229ec`（`agent/driver/react/react.go` 新增 `ErrNoAnswer` + `blankAnswer` + `noAnswerError`；`!action.HasToolCalls()` 分支里先判 `blankAnswer` 再记 `completed`）。
+- **Go 语义**：模型这一轮**既无正文也无工具调用**（推理模型把「下一步要做什么」写进思维链就收手的典型产物）→ 记 `turn/end{reason:"error"}` 并返回 `ErrNoAnswer`，**不记 `completed`**。判据不能只看「有没有工具调用」——只看那一条时，半截轮次被记成正常完成：宿主与用户都以为这一轮做完了，而日志里查不到任何错误（Go 注释：实测 83 个会话里有 12 轮如此）。输出被截断（`finish_reason=length`）把正文切光时同样落在这里。
+- **详情三样**：有没有思维链、`finish_reason`（length = 被截断）、有没有工具调用——宿主据此提示「发继续」还是「换模型」，而不是只显示一句「失败了」。
+- **Java 落点**：`ReActDriver` 的 `!hasToolCalls()` 分支先判 `blankAnswer(action)`（正文 `strip()` 后为空 **且** 无工具调用），命中则 `abort(session, turn, noAnswer(action))`；新增 `NoAnswerException`（`RuntimeException`，Go 用 `errors.Is` 认分类，Java 用精确 `catch`）。
+- **事实照旧留痕**：assistant 事件（思维链 + 用量 + 停止原因）在判空**之前**已经落库——拦的是「收尾方式」，不是「事实」。
+- **守护用例**：`ReActDriverTest.blankAnswerIsNotRecordedAsCompleted`（含 `turn/end.reason=error`、详情三样、思维链留痕三条断言）/ `whitespaceOnlyAnswerIsAlsoBlank` / `nonBlankAnswerStillCompletes`（反向护栏）。
+
+### #26 空回复不进模型投影
+
+- **Go 证据**：`ff229ec`（`session/session.go` 的 `projectSeq` 在 `case EventAssistant` 里加 `if strings.TrimSpace(ev.Text) == "" && len(ev.ToolCalls) == 0 { continue }`）。
+- **Go 语义**：日志不动（那条 assistant 事件是发生过的事实），但**不投给模型**——部分厂商拒收「既无 content 也无 tool_calls」的 assistant 消息。
+- **Java 落点**：`Projection.projectSeq` 的 `ASSISTANT` 分支在 `flush()` 后先判 `isBlankAnswer(event)`（空白算空 **且** 无工具调用），命中则 `continue`；**`lastAssistantSeq` 仍照旧推进**（后续合成回执要继承它，否则孤儿回执的序号会指到更早的事件上）。
+- **守护用例**：`ProjectionTest.blankAssistantIsNotProjected` / `whitespaceOnlyAssistantIsNotProjected` / `blankAssistantWithToolCallsIsStillProjected`（反向护栏：正文空但**有调用**的 assistant 必须投影，否则随后的 `tool/result` 变成无主孤儿，协议不合法）。
 
 ---
 

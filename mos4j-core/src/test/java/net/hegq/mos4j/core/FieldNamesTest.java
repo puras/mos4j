@@ -17,8 +17,9 @@ class FieldNamesTest {
     @Test
     void coreEventKeysMatchFrozenListOrderInsensitive() {
         // 冻结清单的核心事件键（§4.4：字段名一个不改，照抄 Go）
+        // finishReason 是 2026-11-15 经批准并入的第 15 个键（对齐 Go c610f9f）。
         List<String> frozen = List.of(
-                "seq", "kind", "turn", "time", "text", "reasoning",
+                "seq", "kind", "turn", "time", "text", "reasoning", "finishReason",
                 "toolCalls", "toolCall", "toolResult", "usage",
                 "reason", "approval", "compaction", "error");
         assertEquals(frozen, FieldNames.coreEventKeys(),

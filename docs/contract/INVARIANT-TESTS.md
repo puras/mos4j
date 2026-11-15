@@ -166,6 +166,11 @@ Go 的一步式反而不能显式激活没搜到的工具。
 - 算法 = `sha256("\n".join(sorted(set(names))))`，排序按 `(file, tag)`；
 - `docs/contract/fieldnames.json` 与 `mos4j-core/src/main/resources/contract/fieldnames.json` **diff 无差异**。
 
+> **2026-11-15 再升版（GO-DIFF #24）**：追加 `finishReason`（`session/session.go`，`json:"finishReason,omitempty"`，对齐 Go `c610f9f`）——
+> 条数 **81** / 唯一名称 **72** / `_names_sha256` = `ee43c9ddf6a9cf0c3242d38f42970e3caa1d048441ba19c7f41bb4238042c8cc`；文件字节摘要由 `aeb48e08…` 变为 `a5938d52…`。
+> **仍然不重抽整份清单**：重抽会带入 `session/derive.go` 的 4 条与 `reusedFrom`（后者有意不并，见 SI-46），
+> 因此只手工追加这一条——上表 `callId` 选项的已有漂移同样保留，不夹带修正。
+
 ### 3.6 其他口径差异（已记录，非阻塞）
 
 | 项 | Go | Java | 出处 |
@@ -495,6 +500,6 @@ Go 的一步式反而不能显式激活没搜到的工具。
 | **MCP M3**（认证 / 资源工具 / policy 联动 / 分节 / Describe / Close） | ✅ **已落地**：`McpTokenProvider`（每次请求取一次）+ `McpError.Kind.AUTH`（401/403 归认证类）+ 三个共享资源工具 + policy 联动 + 分节 + 快照 + 关闭；**Starter 接入有意不做** | 守护用例：`McpAuthTest`（5 条）、`McpResourceToolsTest`（8 条）、`McpPolicyIntegrationTest`（3 条）、`McpKitWiringTest`（4 条）、`ToolContractTest.mcpToolsAreNotInTheFrozenList` / `mcpResourceToolsAreNotInTheFrozenList`；见 `MCP-STATUS.md` |
 | 本批新增机制在 §1 台账的 **Go 侧原测试列** | ✅ **已补抄**（2026-11-08，§3.9）：policy 可见性槽、装饰器、模型目录、Describe 补充与关闭语义、子代理 / 续跑 / 审批先验 / 派生读 / 协议注册表 / 提示词构建器 / 取消原因 / 运行期参数 / 本地缓存的 Go 原测试名均已逐字抄录 | 复核命令：`grep -rn "^func Test" <Go 包>`（只抄真实存在的函数名） |
 | **对外 Version API**（2026-11-07） | ✅ **已落地**：`net.hegq.mos4j.core.Version`（常量 + `version()`）+ `Mos4j.version()` + CLI `--version`；**版本号真源 = 父 POM 的 `<version>`**，由 `VersionTest` 机械对齐 | 守护用例：`VersionTest`（3 条：格式 / 与父 POM 一致 / 访问器一致）、`MainTest.versionExitsZeroAndPrintsTheVersion`；发布清单见 `docs/release.md` |
-| **冻结清单的绝对基线与口径**（2026-11-07） | ✅ **已钉死**：80 条 / 71 名 / 名字集合摘要 `3d35911d…`；文档副本与 classpath 基线逐字节一致 | 守护用例：`FieldNameContractTest.frozenListMatchesTheApprovedBaseline` / `theDocumentCopyIsByteIdenticalToTheClasspathBaseline`；**口径**：`3d35911d…` = 唯一名字集合按字典序用 `\n` 拼接后的摘要（**不是文件字节摘要**，后者是 `aeb48e08…`） |
+| **冻结清单的绝对基线与口径**（2026-11-07 立，2026-11-15 升版） | ✅ **已钉死**：**81 条 / 72 名** / 名字集合摘要 `ee43c9dd…`；文档副本与 classpath 基线逐字节一致 | 守护用例：`FieldNameContractTest.frozenListMatchesTheApprovedBaseline` / `theDocumentCopyIsByteIdenticalToTheClasspathBaseline`；**口径**：`ee43c9dd…` = 唯一名字集合按字典序用 `\n` 拼接后的摘要（**不是文件字节摘要**，后者是 `a5938d52…`；升版前分别是 `3d35911d…` / `aeb48e08…`） |
 | **发布配置**（签名 / 发布地址 / 源码附件 / SCM / 许可证） | 🟡 **部分就绪**：`release` profile 已配源码 / javadoc 附件 + GPG 签名，`internal-publish` profile 已配**内部私服**的 `distributionManagement`（地址与仓库 id 由 `-D` 注入，**不写死环境信息**；Maven Central 按 2026-11-07 用户裁决**暂缓**），POM 已补 `<scm>` 与 `<licenses>`（**MIT**）；**仍缺**：私服地址与账号、GPG 密钥（均不入库） | 见 `docs/release.md` §4 与 §5；发布前还差**人工评审签字**与 **Seatbelt 真机验收** |
 | 「Java 用例断言的 == Go 那条断言」 | ⏸ 机器只能证同名测试存在 | 人工逐行读 Go 原测试与 Java 用例，在 [`REVIEW-SHEET.md`](REVIEW-SHEET.md) §1/§2 签字 |
