@@ -48,9 +48,6 @@
   </modules>
 
   <properties>
-    <!-- 编译与运行时目标：JDK 25 -->
-    <maven.compiler.release>25</maven.compiler.release>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!-- 运行时依赖版本（依赖纪律 I7：SDK 只允许 Jackson 家族 / RE2J / JDK） -->
     <!-- Jackson 3：databind/core 换坐标与包名（tools.jackson.*），但注解构件仍是
@@ -67,8 +64,9 @@
     <junit.version>5.11.4</junit.version>
 
     <!-- Spring Boot 版本（只供按需模块 mos4j-spring-boot-starter 使用；
-         SDK 六模块不依赖 Spring——依赖纪律 I7） -->
-    <spring-boot.version>3.5.16</spring-boot.version>
+         SDK 六模块不依赖 Spring——依赖纪律 I7）
+         4.1.x = Spring Framework 7 / Jakarta EE 11 线；4.1.2 是 4.1 线最新补丁版。 -->
+    <spring-boot.version>4.1.2</spring-boot.version>
 
     <!-- 官方 MCP Java SDK 版本（mos4j-tool 用；optional，不传递给下游宿主）。
          2.1.0 = 当前最新稳定版；2.2.0-M2 是里程碑版，不进默认路径。
@@ -83,6 +81,10 @@
     <!-- 3.7.0 / 3.8.1 的 ASM 不认 class file 69（JDK 25），analyze 会直接报错；
          3.9.0 是第一个能读 JDK 25 字节码的版本。 -->
     <maven.dependency.plugin.version>3.9.0</maven.dependency.plugin.version>
+
+    <!-- 编译与运行时目标：JDK 25 -->
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!--
       内部私服发布参数（2026-11-07 裁决：不发 Maven Central，改发内部私服）。

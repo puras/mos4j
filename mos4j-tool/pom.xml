@@ -87,7 +87,7 @@
     <dependency>
       <groupId>org.eclipse.jetty.ee10</groupId>
       <artifactId>jetty-ee10-servlet</artifactId>
-      <version>12.0.36</version>
+      <version>12.1.14</version>
       <scope>test</scope>
     </dependency>
     <!-- Jetty 12.1 用 Servlet 6.1；官方 SDK 的 jakarta.servlet-api 是 provided，测试里要显式声明 -->
@@ -101,7 +101,7 @@
     <dependency>
       <groupId>org.eclipse.jetty</groupId>
       <artifactId>jetty-server</artifactId>
-      <version>12.0.36</version>
+      <version>12.1.14</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

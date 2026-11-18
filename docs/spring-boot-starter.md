@@ -24,7 +24,11 @@
 ./mvnw -Pstarter verify        # 构建 + 测试 starter（CI 里是独立 job）
 ```
 
-版本由 Spring Boot BOM 管理（BOM 版本在父 POM 的 `spring-boot.version` 属性里）。
+版本由 Spring Boot BOM 管理（BOM 版本在父 POM 的 `spring-boot.version` 属性里，当前 **4.1.2** = Spring Framework 7.0 / Jakarta EE 11 线）。
+
+> **Jackson 版本不被 BOM 覆盖**：父 POM 里的 Jackson 3 声明在 BOM import **之前**（Maven 的「先声明者赢」），
+> 所以 BOM 里的 `jackson-bom 3.1.x` 不会把我们的 `tools.jackson.core:*:3.2.4` 降下去——
+> 这一点用 `dependency:tree` 实测确认过，不要因为「升级 Spring Boot 应该跟着改 Jackson」而顺手调顺序。
 
 ---
 

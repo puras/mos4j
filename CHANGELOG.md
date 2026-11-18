@@ -46,7 +46,13 @@
 ### 其他
 
 - **Jackson 3**（`tools.jackson.core:*:3.2.4`）；YAML 用 SnakeYAML Engine。
-- **Spring Boot Starter**（按需模块，26 个配置属性）：路径强制开关、`require-finish`、`max-tokens`、技能目录等。
+- **Spring Boot 4.1.2**（2026-11-18 由 3.5.16 升级）：Spring Framework **7.0.10** / Jakarta EE 11 线。
+  代码**零改动**（`@AutoConfiguration` / `@ConfigurationProperties` / `ApplicationContextRunner` / `AutoConfigurations` 全部兼容），
+  `META-INF/spring/...AutoConfiguration.imports` 机制在 4.x 仍有效（实测加载 31 个配置属性元数据正常生成）。
+  **连带影响：Jetty 工具链** —— 4.1.2 的 BOM 把 Jetty 管到 **12.1.14**，`mos4j-tool` 原先显式钉的 12.0.36 会与 BOM 管的传递构件混族；
+  已两处（`jetty-ee10-servlet` / `jetty-server`）同步升到 12.1.14，MCP streamable-http 真服务器 E2E 3 条重跑通过。
+  **Jackson 不被覆盖**：父 POM 的 Jackson 声明在 BOM import 之前（先声明者赢），`dependency:tree` 实测仍为 3.2.4 / annotations 2.22。
+- **Spring Boot Starter**（按需模块，31 个配置属性，由 `spring-boot-configuration-processor` 生成元数据）：路径强制开关、`require-finish`、`max-tokens`、技能目录等。
 - **对外版本 API**：`net.hegq.mos4j.core.Version`（与 Maven 坐标同步，由 `VersionTest` 对齐）+ CLI `--version`。
 - **许可证**：MIT（仓库根 `LICENSE` + POM `<licenses>`）。
 - **发布配置**：`release` profile（源码 / javadoc 附件 + GPG 签名）、`internal-publish` profile（内部私服地址，**由 `-D` 注入**）、`<scm>` 元数据；**发布目标：内部私服**（Maven Central 暂缓），私服地址与凭证待填。

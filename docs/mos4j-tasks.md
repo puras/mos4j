@@ -782,3 +782,11 @@
   - **T20.5 用例**：`ReActDriverTest` +5（16 条）/ `ProjectionTest` +3（9 条）/ 冻结清单四处守护同步（`FieldNameContractTest` 绝对基线、`FieldNamesTest` 键序列、`EventFieldNameGuardTest` 填键）。
   - **T20.6 回归与文档**：四套 **930/954/956/959**（均 0 失败 / 7 跳过）；GO-DIFF #24–#26 汇总+明细、SI-55、API.md 清单计数、CHANGELOG 已知边界与行为变更、INVARIANT-TESTS §3.5 再升版补记 + 绝对基线行、REVIEW-SHEET / MCP-STATUS / release.md / README 基线同步。
   - **本批不做**：跨语言回放（B25，需人做）；一次整份重抽清单（会夹带未批准的漂移）。
+- [x] **T21 Spring Boot 3.5.16 → 4.1.2**（2026-11-18）
+  - **T21.1 版本选择**：4.1 线最新稳定版 = **4.1.2**（Maven Central 实查；4.2 还在 RC）。4.1.2 = Spring Framework **7.0.10** + Jakarta EE 11。
+  - **T21.2 代码改动：零**。`@AutoConfiguration` / `@ConfigurationProperties` / `EnableConfigurationProperties` / `ConditionalOn*` / `ObjectProvider` / `Environment` / `ApplicationContextRunner` / `AutoConfigurations` 全部兼容；`META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 机制在 4.x 仍有效。starter 24 条测试 clean 后全绿。
+  - **T21.3 连带影响：Jetty 工具链（真缺陷，已修）**。4.1.2 的 BOM 把 `jetty.version` 管到 **12.1.14**，而 `mos4j-tool` 显式钉的是 12.0.36 → 直接依赖 12.0.36 与 BOM 管的传递构件（`jetty-http`/`jetty-security`/`jetty-session`/`jetty-util`/`jetty-io`）混族。按项目已有口径「Jetty 整族一致」，两处均升到 **12.1.14**；MCP streamable-http 真服务器 E2E（3 条）+ `McpKitTest` + `SdkMcpClientE2ETest` 重跑全绿。
+  - **T21.4 Jackson 不被覆盖（实测确认）**：4.1.2 BOM 管理 `jackson-bom 3.1.7`，我们用 **3.2.4**。因为父 POM 把 Jackson 声明在 BOM import **之前**，Maven「先声明者赢」→ `dependency:tree` 实测仍为 `tools.jackson.core:jackson-databind:3.2.4` / `annotations:2.22`。**不要为了「升级 Spring Boot 就顺手调 Jackson」去改声明顺序**（改了就会被降到 3.1.7）。
+  - **T21.5 回归与审计**：四套 **930/954/956/959**（与升级前完全一致，无回归）；7 个模块（6 SDK + starter）`dependency:analyze` 零告警；enforcer 禁列（Guava / ORM / Lombok / Logback / SLF4J）仍生效（starter 只放行 Spring 的窄覆盖不变）；配置元数据 31 个属性正常生成。
+  - **T21.6 文档**：CHANGELOG（升级说明 + 连带的 Jetty 变化 + Jackson 不被覆盖的提醒，并纠正 starter 属性数 26 → **31**）、`docs/spring-boot-starter.md`（BOM 版本 + Jackson 顺序警告）、INVARIANT-TESTS 与 MCP-STATUS（Jetty 12.1.14）。
+  - **本批不做**：跟上 4.2（还在 RC）；不引入 Spring Boot 的 web/actuator 等外围模块（starter 只做装配）。

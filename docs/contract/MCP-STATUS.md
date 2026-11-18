@@ -108,7 +108,7 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
 |---|---|---|
 | **结果投影口径收紧** | 非文本内容的占位诊断**按类型分开**（image / audio / resource / resource_link / 未知），原文案是一句笼统的「只把文本入模」；原始 JSON 上限从 512 改成 **2048**（对齐 Go 的 `maxOpaqueJSON`）；新增 `McpCallResult.opaqueParts()`（结构化占位）与 `textContent()`（纯文本）；参数不是 JSON 对象、上游没给结果 → **fail-closed**（协议层） | `McpResultProjectionTest`（9 条）+ `McpToolAdapterTest.nonTextContentBecomesAPlaceholder`（口径已更新） |
 | **`tool_search` 激活后同轮再声明** | 核实：Java 的 `ReActDriver` **每轮决策前重取工具清单**（与 Go `agent/driver/react/react.go` 同口径），所以「激活 → 下一次请求就声明」本来就成立；**缺的只是 MCP 层的证明** → 新增 MCP 用例：DEFERRED 档的 MCP 工具可被 `tool_search` 搜到、激活后**同一次 run 的下一次请求**就进清单、真能调上游 | `McpDeferredVisibilityTest`（2 条）+ 既有 `DeferredFlowTest.activationTakesEffectNextRound` |
-| **streamable-http 真服务器 E2E** | 官方 SDK 的服务端传输只有 stdio 与 HttpServlet 两族 → 引入**测试作用域**的嵌入式 Jetty 12.0.36（`jetty-ee10-servlet`），用官方 SDK 的 servlet 传输起一台**真的** MCP 服务器，走完 initialize / 会话头 / tools/list / tools/call | `McpHttpServerE2ETest`（3 条） |
+| **streamable-http 真服务器 E2E** | 官方 SDK 的服务端传输只有 stdio 与 HttpServlet 两族 → 引入**测试作用域**的嵌入式 Jetty **12.1.14**（`jetty-ee10-servlet` + `jetty-server` 同版本），用官方 SDK 的 servlet 传输起一台**真的** MCP 服务器，走完 initialize / 会话头 / tools/list / tools/call | `McpHttpServerE2ETest`（3 条） |
 
 > **依赖纪律**：Jetty **只在 test scope**（`mos4j-tool`），不进运行时依赖；SDK 六模块的基线不变。
 > 注意 Jetty 版本要**整族一致**：`jetty-ee10-servlet` 12.1.x 的传递依赖是 12.0.x 的 core，混用会
