@@ -37,7 +37,7 @@
 
 ### MCP 客户端（2026-11-08 起并入 `mos4j-tool`）
 
-- 官方 MCP Java SDK **2.1.0**（不手写 JSON-RPC）；官方 SDK 在 `mos4j-tool` 里是 **optional 依赖**（不传递给下游宿主），要用 MCP 的宿主自己显式声明官方 SDK 坐标；包路径仍是 `net.hegq.mos4j.mcp`。
+- 官方 MCP Java SDK **2.2.0**（2026-11-18 由 2.1.0 升级；不手写 JSON-RPC）；官方 SDK 在 `mos4j-tool` 里是 **optional 依赖**（不传递给下游宿主），要用 MCP 的宿主自己显式声明官方 SDK 坐标；包路径仍是 `net.hegq.mos4j.mcp`。
 - 真 stdio 子进程 E2E、多服务器管理器（两阶段换代 / 失败隔离 / scope 隔离）、三档曝光（direct / deferred / hidden）。
 - 服务器说明每会话注入一次（32KB 预算、user 侧）；**认证**（每次请求取一次 token，401/403 归认证类）；**资源工具三个**。
 - `mcp_servers` 提示词分节；Describe 快照；`Agent.close()` 一并关掉连接与子进程。

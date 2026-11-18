@@ -790,3 +790,10 @@
   - **T21.5 回归与审计**：四套 **930/954/956/959**（与升级前完全一致，无回归）；7 个模块（6 SDK + starter）`dependency:analyze` 零告警；enforcer 禁列（Guava / ORM / Lombok / Logback / SLF4J）仍生效（starter 只放行 Spring 的窄覆盖不变）；配置元数据 31 个属性正常生成。
   - **T21.6 文档**：CHANGELOG（升级说明 + 连带的 Jetty 变化 + Jackson 不被覆盖的提醒，并纠正 starter 属性数 26 → **31**）、`docs/spring-boot-starter.md`（BOM 版本 + Jackson 顺序警告）、INVARIANT-TESTS 与 MCP-STATUS（Jetty 12.1.14）。
   - **本批不做**：跟上 4.2（还在 RC）；不引入 Spring Boot 的 web/actuator 等外围模块（starter 只做装配）。
+- [x] **T22 官方 MCP SDK 2.1.0 → 2.2.0**（2026-11-18）
+  - **T22.1 版本事实**：2.2.0 **已正式发布**（不再是 2.2.0-M1/M2 里程碑版）；`mcp-core` 与 `mcp-json-jackson3` 两个构件均在 Central（实查 200）。原先 POM 注释里「2.2.0-M2 是里程碑版，不进默认路径」的描述已过时，一并改正。
+  - **T22.2 代码改动：零**。编译直接通过；MOS4J 自己的契约层（`McpTransport` / `McpExposure` / `McpClient` / `McpToolAdapter`）封装有效，官方 SDK 类型未向外泄漏——升级没有穿透到公开面。
+  - **T22.3 测试**：`mos4j-tool` **359 / 0 / 0 / 0**（含 MCP 62 条：`McpServerConfigTest` 7 / `McpManagerTest` 10 / `McpAuthTest` 5 / `McpResultProjectionTest` 9 / `McpKitTest` 4 / `SdkMcpClientE2ETest` 4（真 stdio 子进程）/ `McpToolNamingTest` 6 / `McpResourceToolsTest` 8 / `McpToolAdapterTest` 6 / `McpHttpServerE2ETest` 3（真 streamable-http 服务器））；四套 **930/954/956/959** 与升级前完全一致。
+  - **T22.4 传递依赖跟随（范围不变）**：slf4j-api **2.0.20**（原 2.0.16）/ reactor-core **3.8.8**（原 3.7.0）/ json-schema-validator **3.0.8**（原 3.0.6）——三者仍在 SI-52 的例外范围内，**只跟版本走，不扩范围**；`dependency:analyze` 零告警。
+  - **T22.5 文档**：CHANGELOG / README / MCP-STATUS（版本 + 新增依赖表 + 版本口径注）/ REVIEW-SHEET B17；`examples/mcp` 用 `${mcp.sdk.version}` 属性，自动跟随。
+  - **本批不做**：不往 2.x 的 milestone/RC 测（只跟正式版）。

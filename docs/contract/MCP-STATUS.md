@@ -25,7 +25,7 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
 | 项 | 口径 |
 |---|---|
 | 模块 | `mos4j-tool` 的 `net.hegq.mos4j.mcp` 包（**在默认 reactor 里** → `./mvnw verify` 就带它；官方 SDK 是 optional 依赖，宿主须自己显式声明官方 SDK 坐标） |
-| 协议层 | **不手写**：官方 MCP Java SDK `io.modelcontextprotocol.sdk` **2.1.0**（当前最新稳定版；2.2.0-M2 是里程碑版，不进默认路径） |
+| 协议层 | **不手写**：官方 MCP Java SDK `io.modelcontextprotocol.sdk` **2.2.0**（当前最新稳定版；2026-11-18 由 2.1.0 升级） |
 | 为什么官方 SDK | Go 侧同款决策：2026-07-28 规范废弃了 initialize/roots/sampling，手写协议层要同时正确跑两代初始化流程 |
 | 类型不外泄 | 对外契约是 MoS4J 自己的 `McpClient` / `McpServerConfig` / `McpToolInfo`；SDK 类型只在 `net.hegq.mos4j.mcp.internal` 里出现 |
 | JSON | 官方 SDK 的 Jackson 3 实现（`mcp-json-jackson3`）→ 与本仓库 Jackson 3 基线一致（databind 3.1.4 被父 POM 钉到 **3.2.4**） |
@@ -36,9 +36,12 @@ MoS4J 在立项时（2026-11-03 路线 A 拍板）把 MCP 划进「M3+ 单独立
 
 | 新增依赖 | 来源 | 处置 |
 |---|---|---|
-| `org.slf4j:slf4j-api` 2.0.16 | `mcp-core`（jar 内 **199 处**引用） | **只在本模块放行**：排除会直接 `NoClassDefFoundError`（不是「少个日志门面」的事）。只含 API、不含实现 → 没有绑定时是 NOP logger，**不产生任何日志输出** |
-| `io.projectreactor:reactor-core` 3.7.0 | `mcp-core` | 只在本模块出现；SDK 的响应式内核，宿主侧用 `McpClient.sync(...)` 同步门面 |
-| `com.networknt:json-schema-validator` 3.0.6 | `mcp-json-jackson3` | 只在本模块出现 |
+| `org.slf4j:slf4j-api` 2.0.20 | `mcp-core`（jar 内 199 处引用，2.1.0 时统计） | **只在本模块放行**：排除会直接 `NoClassDefFoundError`（不是「少个日志门面」的事）。只含 API、不含实现 → 没有绑定时是 NOP logger，**不产生任何日志输出** |
+| `io.projectreactor:reactor-core` 3.8.8 | `mcp-core` | 只在本模块出现；SDK 的响应式内核，宿主侧用 `McpClient.sync(...)` 同步门面 |
+| `com.networknt:json-schema-validator` 3.0.8 | `mcp-json-jackson3` | 只在本模块出现 |
+
+> 上表版本为 **MCP SDK 2.2.0** 对应的实际解析结果（2026-11-18 `dependency:tree` 实查；
+> 2.1.0 时分别是 slf4j 2.0.16 / reactor 3.7.0 / json-schema-validator 3.0.6）。三者仍在 SI-52 的例外范围内——**范围没变，只跟版本走**。
 
 **其余禁令（Spring / Guava / ORM / Lombok / Logback）照旧**——用 `combine.self="override"` 把门改窄，
 不是把整条门关掉（见 `mos4j-tool/pom.xml`）。SDK 六模块的依赖基线**没有变化**。

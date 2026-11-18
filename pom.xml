@@ -69,10 +69,10 @@
     <spring-boot.version>4.1.2</spring-boot.version>
 
     <!-- 官方 MCP Java SDK 版本（mos4j-tool 用；optional，不传递给下游宿主）。
-         2.1.0 = 当前最新稳定版；2.2.0-M2 是里程碑版，不进默认路径。
+         2.2.0 = 当前最新稳定版（2026-11-18 由 2.1.0 升级；2.2.0-M1/M2 是旧里程碑版）。
          协议层不手写（Go 参考实现同款决策：2026-07-28 规范废弃了 initialize/roots/sampling，
          手写协议层要同时正确跑两代初始化流程）。 -->
-    <mcp.sdk.version>2.1.0</mcp.sdk.version>
+    <mcp.sdk.version>2.2.0</mcp.sdk.version>
 
     <!-- 构建插件版本 -->
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
