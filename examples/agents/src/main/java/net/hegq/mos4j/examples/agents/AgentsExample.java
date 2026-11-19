@@ -2,7 +2,7 @@ package net.hegq.mos4j.examples.agents;
 
 import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.session.Session;
 
 import java.io.IOException;

@@ -1,6 +1,6 @@
 package net.hegq.mos4j.examples.testkit;
 
-import net.hegq.mos4j.model.Request;
+import net.hegq.mos4j.model.chat.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

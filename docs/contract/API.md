@@ -632,7 +632,7 @@ public final class GeminiChatModel implements ChatModel {      // PROVIDER = "ge
     // functionCall.args 是完整对象 → 序列化为 ToolCall.args 字符串；同 id 跨 chunk 合并。
 }
 
-// ---- mos4j-model：重试（T6.5，装饰器，默认不装配即透传）----
+// ---- mos4j-model：重试（T6.5，装饰器，默认不装配即透传；包 net.hegq.mos4j.model.retry）----
 public final class RetryPolicy {
     public static RetryPolicy ofDefaults();       // 5 次 / 500ms 起 / 20s 封顶
     public static Builder builder();              // maxAttempts/initialBackoff/maxBackoff/retryIf
@@ -928,7 +928,7 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 | 超时装饰器 | `TimeoutChatModel(model, duration)` | 协作式取消；**外部取消优先于超时**；外部已取消时**不调用模型**；超时抛 `ModelTimeoutException` |
 | 降级装饰器 | `FallbackChatModel(primary, backup)` | 只在主模型**运行时失败**时降级；`CancellationException` **不降级**（取消不是失败）；能力集取并集 |
 | 缓存装饰器 | `CachingChatModel(model, ttl)` | **只缓存非流式**成功结果；`ttl <= 0` 不过期；取消检查**先于**缓存命中；失败 / 空响应不缓存；命中返回同一个 `Response` 对象；这是**本地**缓存，与服务端 prompt cache 不是一回事（对齐 Go `llm.WithCache`，键口径见 SI-50） |
-| 模型目录 | `ModelOption` / `Config.Builder.models(...)` / `defaultModelId(...)` | 保序；重复 ID 与未知 ID **fail-closed**；切换**下一轮生效**；**凭据只留在模型对象里**，不进快照与公开描述 |
+| 模型目录 | `ModelOption`（`net.hegq.mos4j.model.catalog`）/ `Config.Builder.models(...)` / `defaultModelId(...)` | 保序；重复 ID 与未知 ID **fail-closed**；切换**下一轮生效**；**凭据只留在模型对象里**，不进快照与公开描述 |
 | 运行期切换 | `Agent.setModel(id)` / `modelId()` / `models()` | 不重建 Agent |
 | Describe 补充者 | `DescribeContributor.contribute(facts, caveats)` | 贡献者失败转成 caveat，**不让整个快照不可用** |
 | 关闭 | `Config.Builder.closer(AutoCloseable)` + `Agent.close()` | `Agent implements AutoCloseable`；**幂等**；逐个关；一个关不掉**不阻止**关别的；最后抛包装后的 `IllegalStateException` |
@@ -1065,7 +1065,7 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 | 注册 | `ModelRegistry.register(String name, Factory factory)` | 工厂签名 `ChatModel create(Map<String, String> config) throws Exception`；同名注册**覆盖** |
 | 创建 | `ModelRegistry.create(String name, Map<String, String> config)` | 未知名字 → **fail-closed** 并列出已注册名字 |
 | 名字列表 | `ModelRegistry.names()` | 排序且不可变；另有 `contains(String)` / `size()` |
-| 边界 | 只做「名字 → 工厂」映射，**生产裸 `ChatModel`** | 横切能力（日志 / 超时 / 回退 / 缓存）仍由调用方用装饰器**显式组合**，不引入隐式全局顺序 |
+| 边界 | 只做「名字 → 工厂」映射，**生产裸 `ChatModel`** | 横切能力（日志 / 超时 / 回退 / 缓存）仍由调用方用装饰器**显式组合**，不引入隐式全局顺序；包位置 `net.hegq.mos4j.model.catalog`（与 `ModelOption` / `SwitchableChatModel` 同包） |
 
 #### 3.15.6 可注入提示词构建器（#8）
 
@@ -1111,11 +1111,11 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 
 | 项 | 口径 |
 |---|---|
-| 位置 | `examples/`（7 个示例模块 + 共享 `examples/testkit`） |
+| 位置 | `examples/`（8 个示例模块 + 共享 `examples/testkit`） |
 | 构建 | 默认**不进 reactor**：`./mvnw -Pexamples verify`；MCP 示例再叠 `-Pexamples,mcp`（局部 profile） |
 | 依赖 | 每个示例**只声明自己真的 import 到的模块**（不靠聚合层或传递依赖「恰好能编译」）；`testkit` 仅 **test scope** |
 | 用例 | 脚本化模型替身（`StubModel`）真跑装配、工具链与循环；**不碰网络**（示例需要真 API Key，CI 跑不了） |
-| 目录 | `minimal` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`，每个目录一个 README |
+| 目录 | `minimal` / `model` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`，每个目录一个 README |
 
 **发布清单**见 [`docs/release.md`](../release.md)；**发布说明草稿**见 [`CHANGELOG.md`](../../CHANGELOG.md)。
 
@@ -1152,6 +1152,234 @@ mos4j --no-path-scope "输入"   # 显式不装路径强制（受限 macOS 主�
 - 守护用例：`OpenAiChatModelTest` 6 条（含 `audioFormat_mapsMimeToWireFormat`）、`L1AnthropicScenariosTest` 2 条、`L1GeminiScenariosTest` 5 条（含 `fileData` 与 `inlineData` 的 MIME 缺省分野）。
 
 
+
+---
+
+### 3.17 wire 层：协议无关的 SSE 分帧与流终止判据（2026-11-18 已落地）
+
+> **地位**：`mos4j-model` 内新增 `net.hegq.mos4j.model.wire` 子包——协议无关的「线机械」层，
+> 服务两个场景：mos4j 自己（协议 → 统一模型投影）与 eucp-ai 网关（厂商协议原样透传）。
+> 依赖纪律不变（Jackson / RE2J / JDK）；不引厂商 SDK。
+
+#### 3.17.1 分帧：`SseEvent` + `SseEventReader`
+
+| 项 | 口径 |
+|---|---|
+| `SseEvent` | record：`event()` / `id()` / `data()` |
+| 派发条件 | 空行派发；**只有 data 缓冲非空才派发**（注释 + 空行 = 无事发生；空 data 事件照发，保留旧「空 data 行 = 关流」语义） |
+| 字段 | `event:` / `id:` 归位；`id` 跨事件保留（lastEventId）；多行 data 用 `\n` 连接；`: 注释`跳过；字段值去一个前导空格；BOM 剔除；`retry:`/未知字段忽略 |
+| 有意偏差 | EOF 时**宽松派发**未完成事件（对齐旧行级实现的即时处理）；「流算不算完整」由终止规则判定，不进分帧层 |
+| 守护 | `SseEventReaderTest` 11 条 + fuzz 扩展（截断流与随机垃圾不抛异常） |
+
+#### 3.17.2 终止：`StreamTermination<T>` + 三协议 Rules
+
+```java
+// net.hegq.mos4j.model.wire —— 每条流一个实例，非线程安全
+public interface StreamTermination<T> {
+    default boolean observeRaw(String data);  // 原始层哨兵（如 [DONE] / 空 data 行）→ 返回 true 停止读取
+    void observe(T event);                    // 事件层证据
+    boolean isFinal();                        // 事件层终止事件已到（如 message_stop）→ 停止读取
+    boolean streamIncomplete();               // 流读完判定：true = 截断（机制 M5）
+}
+```
+
+| 协议 | Rules 类 | observeRaw | isFinal | streamIncomplete |
+|---|---|---|---|---|
+| OpenAI | `OpenAiStreamRules` | `[DONE]` / 空 data 行 → true | 恒 false（停止发生在原始层） | 无 finish_reason 且未收到哨兵 |
+| Anthropic | `AnthropicStreamRules` | 空 data 行 → true | `message_stop` | 无 stop_reason 且未收到哨兵；另有 `isErrorEvent` / `errorMessage`（流中 error 事件 = 服务端失败，非截断） |
+| Gemini | `GeminiStreamRules.termination(boolean requireFinish)` | 空 data 跳过 | 恒 false（无哨兵，读到 EOF；usageMetadata 在 finishReason 之后，提前停会丢） | `requireFinish && 无 finishReason`（逃生阀，缺省 true） |
+
+- 口径不变（机制 M5）：**结束标记或结束原因任一到即完整；两者皆无才是截断；结束原因为空 ≠ 截断**。
+- 三个 `*ChatModel` 已全部改走 `SseEventReader` + Rules（**M5 行为零变化**，L1 全量回归绿）；终止判据只有这一份，不允許消费方各自抄。
+
+#### 3.17.3 eucp-ai 消费面与边界
+
+| 项 | 口径 |
+|---|---|
+| 稳定 wire API | `net.hegq.mos4j.model.transport.*` + `net.hegq.mos4j.model.wire.*` + `protocol.<方言>.<kind>` 的 Config/Rules（例：`net.hegq.mos4j.model.protocol.openai.chat.OpenAiConfig` / `…OpenAiStreamRules`） |
+| 明确不含 | `ChatModel`、统一模型投影、协议 DTO 的内部解析细节 |
+| 厂商 SDK | **不引**（openai-java / anthropic-java / google-genai）：chat 线协议稳定且实现成本已付；引 SDK 破 I7 依赖纪律并带 Jackson 2 vs 3 冲突。Spring AI 定位为可选适配器之一，不进内核 |
+| 拆分触发条件 | eucp-ai 要求不拖 model 层 / 出现第二个非 mos4j 消费方 / wire 需独立发版节奏 → 再拆 `mos4j-wire` 模块 |
+
+### 3.18 模型族扩展：公共底座 + kind 谱系 + 方言约定（2026-11-19 已落地底座）
+
+> **地位**：`mos4j-model` 根包 = **跨模型种类的公共底座**；每个模型种类自己一族（`model.<kind>`）；
+> 协议层按**方言**分（`protocol.<方言>.<kind>`），**不按平台分**。
+> 本节先落地底座四件套（`Artifact` / `TaskHandle` / `TaskStatus` / `TaskPoller`）与口径，种类族按批次推进（T25–T29）。
+
+#### 3.18.1 公共底座清单（根包成员）
+
+| 类 | 定位 | 跨种类用途 |
+|---|---|---|
+| `Artifact` | 产物值类型（sealed 接口） | 图像 / 音频 / 视频 / 文档等二进制产物的统一表示 |
+| `TaskHandle` / `TaskStatus` | 异步任务句柄与状态 | 「提交 → 轮询 → 取产物」生命周期的统一表示 |
+| `TaskPoller` | 刷新动作接口 | 协议层实现轮询；底座只定义「刷新一次」这个原子动作 |
+| `Usage` / `UsageDetails` / `InputTokenDetails` / `OutputTokenDetails` / `UsageJson` | token 计量 | chat 与 embedding 等共用（口径 M6 不变） |
+| `StatusError` | 协议错误 | 所有 kind 的 HTTP 失败统一表达（带状态码，可被重试策略读） |
+| `ModelTimeoutException` | 契约异常 | 宿主 catch 的超时（对任何 kind 皆适用） |
+
+> 归位口径：**跨 kind 的留根级，chat 专属的随 chat 族下沉**（chat 契约异常 `EmptyResponseException` /
+> `StreamTruncatedException` / `StreamAbortedException` 属后者——**已落地，见 §3.19**）。
+
+#### 3.18.2 `Artifact`：二进制产物
+
+| 项 | 口径 |
+|---|---|
+| 形态 | `Artifact.InMemory`（字节在内存，构造时防御性复制）/ `Artifact.OnDisk`（已落盘，只带引用）——**用类型区分，不靠空值**（避免「既无内容也无位置」的半成品状态） |
+| 字段 | `mediaType`（必填）/ `fileName`（可空）/ `size()`；`InMemory.content()` 取字节，`OnDisk.location()` 取位置 |
+| 相等性 | `InMemory` 按**内容**比（record 默认按数组引用比，会把同一产物说成两个东西）；`OnDisk` 按元信息比 |
+| 不变式 | 缺媒体类型 / 负大小 / 空位置 / 空字节 → 构造即拒（fail-closed） |
+| 禁则 | **二进制不得进 `Message.content`**：上下文会爆（每轮回灌都带着整段二进制）/ 审计记不下（日志只能记引用）/ 可能带凭据（产物跟着 prompt 去别的厂商） |
+| 写盘 | 产物不自己写文件（写盘是宿主的权限边界）；`Artifact.onDisk(Path, mediaType)` 只 stat 大小 |
+
+#### 3.18.3 `TaskHandle` / `TaskStatus` / `TaskPoller`
+
+| 项 | 口径 |
+|---|---|
+| 状态 | `PENDING` / `RUNNING` / `SUCCEEDED` / `FAILED` / `CANCELED` / `UNKNOWN`；`UNKNOWN` = 取值不认识，**不猜**（猜成功会拿空产物当结果，猜失败会误杀仍在跑的任务）；`UNKNOWN` **不算终态** |
+| 句柄 | `taskId` + `status` + `artifacts`（不可变副本）+ `errorMessage`；**失败必带原因**（没原因的失败，宿主只能透传「任务失败了」，用户无从判断是配额、参数还是服务端问题），成功不得带原因 |
+| 刷新 | `TaskPoller.refresh(TaskHandle)` 由协议层实现（轮询端点与状态映射各家私有）；**底座不提供退避循环**——轮询节奏与超时是宿主策略（与取消语义一致：框架不替宿主做决定） |
+
+#### 3.18.4 kind 谱系与生命周期
+
+生命周期五型：一次 JSON / 一次二进制 / SSE 单向流 / WebSocket 双向 / 异步提交→轮询→取产物。
+
+| kind | 形状 | 生命周期 | 落点 |
+|---|---|---|---|
+| chat | 文本 / 多模态对话 | 一次 JSON 或 SSE | `model.chat`（T26 下沉）+ `protocol.<方言>.chat` |
+| 视觉理解（VLM） | 图片入、文本出 | 一次 JSON | **复用 chat**（`ContentPart.image*` + `MULTIMODAL`），不另立 kind |
+| 对话式 omni（内联音频） | 文本 + 音频块 | 一次 JSON | **复用 chat**（`Request.modalities` + `Message.contentParts`） |
+| embedding | 文本 → 向量 | 一次 JSON | `model.embedding` |
+| rerank | 文本 + 候选 → 排序 | 一次 JSON | `model.rerank` |
+| 文件 / 文档解析 | 文件 → 结构化块 | 一次 JSON 或**异步任务** | `model.file` |
+| TTS | 文本 → 音频 | 一次二进制 | `model.speech`（输出 `Artifact`） |
+| ASR | 音频 → 文本 | 一次 JSON 或 SSE | `model.asr`（输入二进制） |
+| 图像生成 | 提示 → 图片 | 一次二进制或**异步任务** | `model.image`（产物 `Artifact`） |
+| 视频生成 | 提示 → 视频 | **异步任务** | `model.video`（长时任务） |
+| Realtime | 双向实时 | **WebSocket** | `model.realtime`（独立传输，不套一次调用型） |
+
+#### 3.18.5 方言优先（协议层怎么分）
+
+| 项 | 口径 |
+|---|---|
+| 目录 | `protocol.<方言>.<kind>`——**第一维度是方言（wire family），不是平台** |
+| 为什么 | 兼容性是**方言级**的：OpenAI 方言一份覆盖 DeepSeek / Kimi / Qwen 兼容模式 / 豆包 / 智谱 / SiliconFlow / OpenRouter / vLLM / Ollama / 百炼兼容模式。按平台分 = 同一套线格式写 10+ 份适配器 |
+| 决策树 | ① 有现成方言（OpenAI / Anthropic / Gemini 兼容）→ **用它**，平台差异走 Config；② 是「某方言 + 私有扩展」→ 仍用该方言 + 扩展钩子；③ 真独有（ASR 静音断句 / 文件解析块结构）→ 才开**平台原生方言包**（如 `protocol.bailian.asr`） |
+| 平台差异三收口 | ① `Config`（baseUrl / apiKey / 鉴权方式 / extra headers / extra body）；② **方言扩展点（SPI）**（请求体扩展 + 响应投影钩子）——**不允许方言包长出 `if (provider.equals(...))`**；③ 能力位由方言给缺省、Config 覆盖 |
+| 已知不等价 | usage 字段名 / `finish_reason` 取值 / 思维链字段名 / 并行工具调用 / 多模态字段名——方言内留归一钩子，逐平台登记偏差（登记范式照 `docs/contract/GO-DIFF.md`） |
+| kind 与方言正交 | kind = 做什么，方言 = 怎么说；两者组合成目录 `protocol.<方言>.<kind>` |
+
+#### 3.18.6 批次计划（依赖顺序，每批独立可验证）
+
+| 批 | 内容 | 破坏性 |
+|---|---|---|
+| T25（本批） | 公共底座四件套 + kind 谱系与方言口径 | 无（纯新增） |
+| T26（**已落地**） | chat 族下沉 `model.chat`（chat 契约异常随族） | 大但机械（消费方 import 批量替换） |
+| T27（**已落地**） | 协议层方言化：`protocol/openai` → `protocol/openai/chat` 等 | 中（协议层内部 + 测试） |
+| T28（**已落地**） | kind 谱系的类型化身（`ModelKind`）+ `catalog` 按 kind 键化；装饰器/重试保持 chat 壳（口径见 §3.21.4） | 中（`ModelOption` 泛型化 + 消费方 import） |
+| T29+ | 按 kind 逐族落地：embedding / rerank → 文件 / TTS / ASR → 图像 / 视频（异步）→ Realtime | 按需 |
+
+### 3.19 chat 族下沉 `net.hegq.mos4j.model.chat`（2026-11-19 已落地）
+
+> **动因**：建设初始不怕破坏——公共契约尚未固化时把 chat 家族一次整理到稳定层级，
+> 免得 chat 长期留在根级成为「特例根」，后续每个 kind 族都要跟这个例外搏斗。
+> **破坏性变更**：14 个类型的包位置变了（全限定名 + import），**行为零变化**。
+
+#### 3.19.1 搬家清单
+
+| 新位置（`net.hegq.mos4j.model.chat`） | 内容 |
+|---|---|
+| `ChatModel` / `Request` / `Response` / `Message` / `Role` | 对话契约 |
+| `ContentPart` / `Tool` / `ToolCall` / `Capability` | 多模态与工具调用（`Capability` 只描述 **chat 协议**能力位——TTS / OCR / REALTIME 不塞进来） |
+| `StreamChunk` / `StreamEmitter` | 流式出口 |
+| `EmptyResponseException` / `StreamTruncatedException` / `StreamAbortedException` | chat 专属契约异常 |
+
+| 留在根级（跨 kind 底座） | 内容 |
+|---|---|
+| `Artifact` / `TaskHandle` / `TaskStatus` / `TaskPoller` | 产物与异步任务（§3.18） |
+| `Usage` / `UsageDetails` / `InputTokenDetails` / `OutputTokenDetails` / `UsageJson` | token 计量（chat 与 embedding 共用，口径 M6 不变） |
+| `StatusError` / `ModelTimeoutException` | 协议错误与契约异常（宿主 catch 的对象，跨 kind 皆适用） |
+
+#### 3.19.2 影响面
+
+| 项 | 口径 |
+|---|---|
+| 消费方 | `mos4j-model` 内的 `protocol/*` / `decorate` / `retry` / `catalog`；`mos4j-session`（`Event` / `Projection` / `Transcript` / `Session` / `context/*`）、`mos4j-tool`（`ToolRegistry`）、`mos4j-agent`（`Agent` / `Config` / `ModelCatalog` / `sdk.Mos4j`）、`mos4j-spring-boot-starter`（`Mos4jAutoConfiguration`）——全部改 import |
+| 测试 | 三个 L1 语料场景测试随族下沉到 `net.hegq.mos4j.model.chat`（它们是 chat 场景回归）；根包测试只留底座（`ArtifactTest` / `TaskHandleTest` / `UsageJsonTest` / `L1CorpusIntegrityTest` / `SseParserFuzzTest`） |
+| 全限定名 | 消费方里的 `net.hegq.mos4j.model.Request` 等写法一并改写（0 处遗留） |
+| 行为 | **零变化**——纯搬家，用例数不变（model 141 / 全仓 972，0 失败 / 7 跳过） |
+| 依赖方向 | `chat → 根级`（chat 依赖 `Usage` 等底座）；`protocol/*` → `chat` + 根级；`decorate` / `retry` / `catalog` → `chat`；**根级不依赖 chat** |
+
+### 3.20 协议层方言化：`protocol.<方言>.<kind>`（2026-11-19 已落地）
+
+> **动因**：协议层的第一维度从「平台」换成「**方言（wire family）**」——兼容性是**方言级**的：
+> OpenAI 方言一份覆盖 DeepSeek / Kimi / Qwen 兼容模式 / 豆包 / 智谱 / SiliconFlow / OpenRouter /
+> vLLM / Ollama / 百炼兼容模式；按平台分 = 同一套线格式写 10+ 份适配器。
+> 包结构现在就把「方言 × kind」矩阵立住：**后续加 kind 只加一格，不动已有格子**。
+
+#### 3.20.1 包结构
+
+| 方言 | kind | 内容 |
+|---|---|---|
+| `protocol.openai` | `chat` | `OpenAiChatModel` / `OpenAiConfig` / `OpenAiDtos` / `OpenAiStreamDtos` / `OpenAiStreamRules` |
+| `protocol.anthropic` | `chat` | `AnthropicChatModel` / `AnthropicConfig` / `AnthropicDtos` / `AnthropicStreamDtos` / `AnthropicStreamRules` |
+| `protocol.gemini` | `chat` | `GeminiChatModel` / `GeminiConfig` / `GeminiDtos` / `GeminiStreamRules` |
+
+- **破坏性变更**：包路径从 `protocol.<方言>` 变为 `protocol.<方言>.chat`（全仓 import + 测试包同步改写，**0 处遗留**）；**行为零变化**。
+- **方言级共享层**（连接配置 / 鉴权 / extra body / 扩展钩子）**待第二个 kind 落地时抽取**——届时有两个实例才能定形，现在抽就是猜。
+
+#### 3.20.2 eucp-ai 消费面（路径已变）
+
+| 项 | 口径 |
+|---|---|
+| 稳定 wire API | `net.hegq.mos4j.model.transport.*` + `net.hegq.mos4j.model.wire.*` + `protocol.<方言>.<kind>` 的 Config/Rules（将来按需加带 catch-all 的无损 DTO） |
+| 明确不含 | `net.hegq.mos4j.model.chat.*`（统一模型投影）、协议 DTO 的内部解析细节 |
+| 破坏性提示 | eucp-ai 侧 import 需跟着改（`protocol.openai.X` → `protocol.openai.chat.X`）；**wire 层路径不变**（`wire.SseEventReader` / `wire.StreamTermination`） |
+
+### 3.21 kind 谱系的类型化身 + 目录按 kind 键化（2026-11-19 已落地）
+
+> **动因**：§3.18 的 kind 谱系之前只是文字。目录与注册表都硬绑 `ChatModel`，宿主无法回答
+> 「这一项是什么 kind」。本批把 kind 落成类型，并让目录项同时报 kind 与句柄。
+
+#### 3.21.1 `ModelKind`（根包 `net.hegq.mos4j.model`）
+
+| 取值 | 含义 |
+|---|---|
+| `CHAT` | 对话补全（含视觉理解、工具调用、流式） |
+| `EMBEDDING` | 文本嵌入（文本 → 向量） |
+| `RERANK` | 重排序（query × documents → 分数） |
+| `IMAGE` / `VIDEO` | 图像 / 视频生成（通常异步任务，产出产物引用） |
+| `SPEECH` / `ASR` | 文本→语音（TTS）/ 语音→文本 |
+| `FILE` | 文件解析（PDF / 文档 → 结构化文本或产物引用） |
+| `REALTIME` | 实时双工（WebSocket：音频 / 文本双向流） |
+
+- **与 `Capability` 分工**：`Capability` 是 **chat 协议内部**的能力位；`ModelKind` 是**跨族**的种类。TTS / ASR / REALTIME 不塞进 chat 的 `Capability`。
+- **与方言正交**：kind = 做什么，方言 = 怎么说；组合成 `protocol.<方言>.<kind>`。
+
+#### 3.21.2 `ModelOption<T>` 泛型化
+
+| 项 | 口径 |
+|---|---|
+| 形状 | `record ModelOption<T>(ModelKind kind, String id, String label, T model)` |
+| 工厂 | `ModelOption.chat(id, model)` / `ModelOption.chat(id, label, model)`——将来 embedding / rerank 各加一个工厂 |
+| 校验 | kind 非空（`llm: 模型目录里有项没有 kind`）、ID 非空、句柄非空；标签空 = 用 ID |
+| 旧形状 | `ModelOption(String id, String label, ChatModel chat)` 与 `chat()` 访问器**已删除**（破坏性）；改用工厂 + `model()` |
+
+#### 3.21.3 agent `ModelCatalog` 按 kind 校验
+
+- 类型改为 `List<ModelOption<ChatModel>>`；装配期发现 `kind != CHAT` 直接报错：`mos4j: 模型目录里的 X 不是 chat 模型（kind=Y）`——目录的「下一轮切换」语义只对 chat 成立，标错 kind 的项不静默忽略。
+
+#### 3.21.4 横切策略的边界（本批不改代码，只定口径）
+
+| 层 | 现状 | 为什么 |
+|---|---|---|
+| 重试机制 | `RetryPolicy` 只吃 `Predicate<Throwable>` 分类器与退避参数，**已经不认 chat**；`RetryExecutors` 只管睡眠 | 机制层本就 kind 无关，无需下沉 |
+| 装饰器壳 | `ChatModelDecorator` / `RetryingChatModel` / `Caching` / `Logging` / `Timeout` / `Fallback` 仍锁 `ChatModel` | 各 kind 的调用签名不同，**没有共同超类型可装饰**；硬抽成通用装饰器只能靠反射或 `Object`，比「按形状复制」更贵、更不类型安全 |
+| 提供方注册表 | `catalog.ModelRegistry` 仍产出 `ChatModel` | 按 kind 键化推迟到**第一个非 chat kind 落地**（届时按 `(kind, provider)` 注册），现在改就是猜共享面 |
+
+#### 3.21.5 验证
+
+- 「mos4j-model」20 类 / **148 用例**（新增 `ModelOptionTest` 7 条）；`mos4j-agent` **207**（新增 kind 校验 1 条）；全仓 **980 用例**（core 20 / model 148 / runtime 99（7 跳过）/ tool 359 / session 147 / agent 207），**0 失败 / 0 错误**；`./mvnw verify` 绿。
 
 ---
 

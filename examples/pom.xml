@@ -8,7 +8,7 @@
     多占构建时间）。
 
   怎么构建：
-    ./mvnw -Pexamples verify          # 六个示例（不含 mcp）
+    ./mvnw -Pexamples verify          # 八个示例（不含 mcp）
     ./mvnw -Pexamples,mcp verify      # 连 MCP 示例一起（MCP 示例要用官方 MCP SDK）
 
   怎么跑：
@@ -27,11 +27,12 @@
   <artifactId>mos4j-examples</artifactId>
   <packaging>pom</packaging>
   <name>MoS4J :: Examples</name>
-  <description>示例集：最小装配 / 多轮对话 / 多智能体 / 技能 / 子代理 / 恢复 / MCP</description>
+  <description>示例集：最小装配 / 纯模型 / 多轮对话 / 多智能体 / 技能 / 子代理 / 恢复 / MCP</description>
 
   <modules>
     <module>testkit</module>
     <module>minimal</module>
+    <module>model</module>
     <module>chat</module>
     <module>agents</module>
     <module>skills</module>

@@ -1,8 +1,8 @@
 package net.hegq.mos4j.examples.recovery;
 
 import net.hegq.mos4j.driver.ResumeOptions;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.sdk.Mos4j;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;

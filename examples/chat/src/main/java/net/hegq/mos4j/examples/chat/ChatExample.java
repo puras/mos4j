@@ -5,7 +5,7 @@ import net.hegq.mos4j.core.ApprovalResult;
 import net.hegq.mos4j.hook.ApprovalChannel;
 import net.hegq.mos4j.hook.GuardBus;
 import net.hegq.mos4j.hook.GuardDecision;
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.policy.ToolNamePolicy;
 import net.hegq.mos4j.sdk.Mos4j;
 
@@ -56,7 +56,7 @@ public final class ChatExample {
      * @param args 命令行参数（{@code --new} / {@code --session <id>}）
      * @throws Exception 装配或运行失败
      */
-    public static void main(String[] args) throws Exception {
+    static void main(String[] args) throws Exception {
         String sessionId = sessionIdFrom(args);
         Mos4j mos4j = assemble(Path.of("data"), new ConsoleApproval());
         System.out.println("[会话] " + sessionId + "（事件日志在 data/" + sessionId + ".jsonl）");
@@ -120,7 +120,7 @@ public final class ChatExample {
      *
      * @param chunk 增量块
      */
-    public static void render(net.hegq.mos4j.model.StreamChunk chunk) {
+    public static void render(net.hegq.mos4j.model.chat.StreamChunk chunk) {
         if (chunk.reasoning() != null && !chunk.reasoning().isEmpty()) {
             System.out.print("\u001b[90m" + chunk.reasoning() + "\u001b[0m");
         }
@@ -178,7 +178,7 @@ public final class ChatExample {
      * @throws IOException 会话日志目录不可用
      */
     public static Mos4j assembleStreaming(Path logDir, ChatModel model, ApprovalChannel approvals,
-                                          java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk)
+                                          java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk)
             throws IOException {
         return Mos4j.builder()
                 .model(model)

@@ -140,9 +140,9 @@
 ### #10 examples 示例程序集
 
 - **Go 证据**：`examples/{agents,chat,mcp,minimal,recovery,skills,subagent}`。
-- **Java 落点**：`examples/` 下 7 个对应示例模块（`minimal` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`）+ 共享 `examples/testkit`（脚本化模型替身）；每个示例一个 README。
+- **Java 落点**：`examples/` 下 8 个对应示例模块（`minimal` / `model` / `chat` / `agents` / `skills` / `subagent` / `recovery` / `mcp`）+ 共享 `examples/testkit`（脚本化模型替身）；每个示例一个 README（model 为 Java 侧新增，Go 无对应）。
 - **有意差异**：示例**不进默认 reactor**（独立 `examples` profile，MCP 示例再叠 examples 侧的局部 `mcp` profile，即 `-Pexamples,mcp`）；用例用脚本化替身模型，**不碰网络**（SI-51）。
-- **守护用例**：examples 用例共 28 条 + `StubModelTest`（5 条）。
+- **守护用例**：examples 用例共 **61 条**（`-Pexamples`，已含 `StubModelTest` 5 条；其中 model 35 条含 `ModelChatLoopTest` 13 条、`ModelConfigTest` 8 条、`ModelSurfaceTest` 8 条、`ModelExampleTest` 6 条）。
 
 ### #11 取消原因
 

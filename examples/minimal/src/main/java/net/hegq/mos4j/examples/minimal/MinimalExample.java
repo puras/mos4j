@@ -1,6 +1,6 @@
 package net.hegq.mos4j.examples.minimal;
 
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.sdk.Mos4j;
 
 import java.io.IOException;

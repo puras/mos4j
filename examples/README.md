@@ -9,7 +9,7 @@
 ## 构建
 
 ```bash
-# 六个不依赖 MCP 的示例
+# 八个不依赖 MCP 的示例
 ./mvnw -Pexamples verify
 
 # 连 MCP 示例一起（需要官方 MCP SDK 的构件在本机仓库里）
@@ -24,6 +24,7 @@ MCP 接入本身已并入 `mos4j-tool`（在默认 reactor 里），官方 MCP S
 | 模块 | 讲什么 | 主程序 |
 | --- | --- | --- |
 | [minimal](minimal/README.md) | 一次装配，一个问题，一句回答 | `net.hegq.mos4j.examples.minimal.MinimalExample` |
+| [model](model/README.md) | 纯模型：直连 ChatModel（非流式 / 流式 / 多轮 / **循环对话** / 取消）+ 装配面（目录 / 装饰器）+ **配置常量**（`ModelConfig`） | `net.hegq.mos4j.examples.model.ModelExample`（`--loop` 进交互）、`ModelSurface`、`ModelChatLoop`、`ModelConfig` |
 | [chat](chat/README.md) | 多轮会话、审批问人、策略 | `net.hegq.mos4j.examples.chat.ChatExample` |
 | [agents](agents/README.md) | 多智能体：拆解 → 执行 → 验收 | `net.hegq.mos4j.examples.agents.AgentsExample` |
 | [skills](skills/README.md) | 技能目录：清单进提示词、正文现读 | `net.hegq.mos4j.examples.skills.SkillsExample` |

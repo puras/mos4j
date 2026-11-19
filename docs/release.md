@@ -16,7 +16,7 @@
 | `mos4j`（父 POM） | ✅ | 依赖管理 + 插件配置 |
 | `mos4j-core` … `mos4j-agent`（6 个） | ✅ | SDK 本体，是发布主体 |
 | `mos4j-spring-boot-starter` | ✅（按需 profile） | Spring Boot 薄封装；构建用 `-Pstarter` |
-| `mos4j-examples`（8 个模块：7 个示例 + `testkit`） | ✅（`examples` profile） | 示例集；构建用 `-Pexamples`（MCP 示例再叠 `-Pexamples,mcp`） |
+| `mos4j-examples`（9 个模块：8 个示例 + `testkit`） | ✅（`examples` profile） | 示例集；构建用 `-Pexamples`（MCP 示例再叠 `-Pexamples,mcp`） |
 
 > 按需模块**不进默认 reactor**，但**要发布**：宿主用不用由它决定，坐标必须能解析到。
 > 三个 profile 都要构建（`verify` 一次不够，`deploy` 要把 `starter` / `examples` / `examples,mcp` 三套产物都推上去）。
@@ -49,9 +49,9 @@ MAVEN_USER_HOME=$PWD/.m2repo ./mvnw -Dmaven.repo.local=.m2repo -B -am \
 # 4) 冻结清单：81 条 / 72 名 / 名字集合摘要 ee43c9dd…（由 FieldNameContractTest 守）
 ```
 
-**当前基线**（2026-11-15 空回复 fail-closed 与 finishReason 落日志后实跑）：默认 reactor **930 通过 / 0 失败 / 0 错误 / 7 跳过**（109 个测试类）；
-`-Pstarter` **954 / 7**；`-Pexamples` **956 / 7**；`-Pexamples,mcp` **959 / 7**。
-（MCP 接入已并入 `mos4j-tool`，进入默认 reactor；examples 自身分别为 26 与 29 条。）
+**当前基线**（2026-11-19 模型族扩展与 model 示例改造后实跑）：默认 reactor **980 通过 / 0 失败 / 0 错误 / 7 跳过**（116 个测试类）；
+`-Pstarter` **1004 / 7**；`-Pexamples` **1041 / 7**；`-Pexamples,mcp` **1044 / 7**。
+（MCP 接入已并入 `mos4j-tool`，进入默认 reactor；examples 自身分别为 61 与 64 条。）
 
 ## 4. 还缺什么（发布配置的缺口，需要人拍板）
 

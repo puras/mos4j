@@ -417,7 +417,7 @@ Go 的一步式反而不能显式激活没搜到的工具。
 
 | Go 侧 | Java 对应用例 |
 |---|---|
-| `examples/{agents,chat,mcp,minimal,recovery,skills,subagent}`（**Go 侧示例是程序，不带单元测试**；只有 `examples/chat` 目录里给“练手项目”用的 `guard_test.go` / `approval_test.go` / `lab/main_test.go`） | `examples/*/src/test/**`（28 条）+ `StubModelTest`（5 条）：每个示例都真跑一遍装配 + 循环（脚本化模型替身，**不碰网络**） |
+| `examples/{agents,chat,mcp,minimal,recovery,skills,subagent}`（**Go 侧示例是程序，不带单元测试**；只有 `examples/chat` 目录里给“练手项目”用的 `guard_test.go` / `approval_test.go` / `lab/main_test.go`） | `examples/*/src/test/**`（61 条：testkit 5 / minimal 2 / model 35 / chat 5 / agents 2 / skills 4 / subagent 5 / recovery 3） |
 
 > **口径差**：Go 的示例靠真模型跑（需要 API Key），Java 的示例用例改用**脚本化替身**（`examples/testkit` 的 `StubModel`）→ 可进 CI；登记为 SI-51。
 
@@ -475,7 +475,7 @@ Go 的一步式反而不能显式激活没搜到的工具。
 |---|---|---|
 | Go 侧原测试名逐条抄录 | ✅ 已完成（2026-11-06，Go 只读授权后）；**本批新增机制的原测试名已补抄**（§3.7）；**#5/#7/#9 差异批的原测试名已补抄**（§3.8）；**#1/#2/#3/#4/#6/#8/#10/#11/#12/#13 差异批的原测试名已补抄**（§3.9）；**#18/#20/#21 的原测试名已补抄**（§3.11） | 复核命令：`grep -rn "^func Test" <Go 包>` |
 | **Go↔Java 差异的补齐**（13 项） | ✅ **已全部补齐**（2026-11-08）：生产代码 + 定向用例 + 文档登记（[`GO-DIFF.md`](GO-DIFF.md) §2 全绿表 / [`API.md`](API.md) §3.15 / [`SELF-INVENTED.md`](SELF-INVENTED.md) SI-43…SI-51） | 守护用例见 §3.9；**剩余**：人工逐行签字（§4 最后一行）+ 跨语言回放（不是机器能替代的） |
-| **examples 的独立构建与依赖纪律** | ✅ **已验证**（2026-11-08）：`-Pexamples clean verify` 与 `-Pmcp -Pexamples clean verify` 均 BUILD SUCCESS；examples 用例 **28 条** + `StubModelTest` **5 条** 全绿；8 个模块的 `dependency:analyze` **无告警** | 命令：`./mvnw -Pmcp -Pexamples -pl examples/testkit,examples/minimal,examples/chat,examples/agents,examples/skills,examples/subagent,examples/recovery,examples/mcp -am dependency:analyze`；踩坑：testkit 的脚本用完会抛 `IllegalStateException`（不是 `IndexOutOfBoundsException`） |
+| **examples 的独立构建与依赖纪律** | ✅ **已验证**（2026-11-08；2026-11-19 模型族扩展与 model 示例变循环对话后 examples 用例为 61 条）：`-Pexamples clean verify` 与 `-Pmcp -Pexamples clean verify` 均 BUILD SUCCESS；examples 用例 **61 条**（含 `StubModelTest` 5 条）全绿；8 个模块的 `dependency:analyze` **无告警**（2026-11-18 实核；2026-11-19 复跑受沙箱限制未执行） | 命令：`./mvnw -Pmcp -Pexamples -pl examples/testkit,examples/minimal,examples/chat,examples/agents,examples/skills,examples/subagent,examples/recovery,examples/mcp -am dependency:analyze`；踩坑：testkit 的脚本用完会抛 `IllegalStateException`（不是 `IndexOutOfBoundsException`） |
 | 工具名与 Go 侧 builtin 的逐字对照 | ✅ 已核对（**Go 13 / Java 14 全集**：`skill` 条件注册，不是抽样） | 差异见 §3.1；参数差异见 §3.2 |
 | 工具面对齐裁决 | ✅ **已裁决并落地**（B13-1 / B13-2 / B13-3 实施；B13-4 / B13-5 登记为有意差异） | 见 §3.2 结论表与 `REVIEW-SHEET.md` §5 B13 |
 | Go 的 skill 机制缺口 | ✅ **已补齐**（J7：`mos4j-tool` 的 `tool/skill` 包 + `skill` 条件工具 + 两个 skill 事件 + `SkillAudit`；清单已升版至 80/71） | 见 §3.4 / §3.5；测试：`SkillCatalogTest`(33) + `SkillToolTest`(15) + `SkillFlowTest`(9) + `SessionSkillAuditTest`(5) + `EventJsonTest`(+2) + `PromptSectionsTest`(现 16) + `Mos4jTest`(+3) + `Mos4jAutoConfigurationTest`(+3) |

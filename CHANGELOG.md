@@ -88,7 +88,7 @@
 - **取消原因（#11）**：`CancellationToken.cancel(cause)` / `cause()`（首次原因生效），原因进 `turn/end.error`。
 - **运行期可调参数（#12）**：`Agent.setConcurrency` / `setMaxDecisionRounds` / `setRules`（每轮现取；参数级规则需装配期先装）。
 - **本地缓存装饰器（#13）**：`CachingChatModel`（只缓存非流式成功；缓存键覆盖完整请求上下文）。
-- **示例集（#10）**：7 个示例模块 + 共享 testkit（脚本化模型替身，**不碰网络**）；独立 `examples` profile，不进默认 reactor。
+- **示例集（#10）**：8 个示例模块 + 共享 testkit（脚本化模型替身，**不碰网络**）；独立 `examples` profile，不进默认 reactor。（2026-11-18 新增 `model` 纯模型示例：直连 `ChatModel`，非流式 / 流式 / 多轮 / 三协议装配 / 期限取消；守护 `ModelExampleTest` 6 条，协议层用本地假 HTTP 端点抽样，不碰外网。2026-11-19 模型族扩展后补上装配面：`ModelSurface`（registry / catalog / 装饰器链 / 异步任务与产物）+ `ScriptedTaskPoller`，守护 `ModelSurfaceTest` 13 条；同日再把它做成**循环对话**（`ModelChatLoop` + `--loop`，宿主自留历史）并把配置收进 **`ModelConfig` 常量**，守护 `ModelChatLoopTest` 11 条 + `ModelConfigTest` 7 条，该模块 19 → **37 条**；`STREAM_IN_LOOP` 开关后 `ModelChatLoopTest` **13 条** + `ModelConfigTest` **8 条**，该模块 → **40 条**。）
 - 有意差异登记为 **SI-43…SI-51**（装配形状与失败时机不同，语义等价）。
 
 ### Go 差异补齐与复核（2026-11-07）
@@ -116,8 +116,8 @@
 
 ### 机械门基线
 
-- 默认 reactor **930 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，109 个测试类）；`-Pstarter` **954 / 7**；`-Pexamples` **956 / 7**（示例自身 26 条）；`-Pexamples,mcp` **959 / 7**（示例自身 29 条）。
-- 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
+- 默认 reactor **980 通过 / 0 失败 / 0 错误 / 7 跳过**（六模块，116 个测试类）；`-Pstarter` **1004 / 7**；`-Pexamples` **1041 / 7**（示例自身 61 条）；`-Pexamples,mcp` **1044 / 7**（示例自身 64 条）。（2026-11-19 模型族扩展后复跑；3.2 节的 930/954/962/965 为 2026-11-18 的旧值。）
+- 6 个 SDK 模块 + starter + examples 8 模块 `dependency:analyze` 无告警（model 于 2026-11-18 实核；2026-11-19 复跑受本机沙箱限制未能执行——`~/.m2` 不可写）；C6（Spring / `java.util.regex`）均 0；裸 NUL 字节 0。
 
 ---
 
@@ -208,4 +208,230 @@
 
 - `PinnedConnectorTransportTest`（**22 条，真 socket**）：出站报文与 Host / chunked + trailer + 非法长度 / gzip / 头名大小写 / 字节与码点双上限 / 404 / 三类非文本与缺 Content-Type / 同源与跨源重定向 / 跳数上限 / 注入解析器仍拦私网 / 非 HTTP 响应。
 - `PinnedConnectorTest` **9** / `HtmlTextTest` 9 / `WebToolsTest` 22（search 9 + fetch 13）。
-- `mos4j-tool` **315 → 358 → 359**；四套基线 **869/893/894/897 → 912/936/937/940 → 913/937/938/941 → 922/946/948/951 → 930/954/956/959**。
+- `mos4j-tool` **315 → 358 → 359**；四套基线 **869/893/894/897 → 912/936/937/940 → 913/937/938/941 → 922/946/948/951 → 930/954/956/959 → 930/954/962/965 → 980/1004/1025/1028 → 980/1004/1041/1044**（末段 2026-11-19：模型族扩展（retry / decorate / catalog / wire / kind 谱系）+ model 示例跟上装配面 + 示例变循环对话与配置常量 + 循环对话可走流式 + 收掉 chat 示例里的异步/产物演示）。
+
+---
+
+## 未发布 —— wire 层：协议无关的 SSE 分帧 + 流终止判据（2026-11-18）
+
+> 动因：eucp-ai（网关平台）需要把上游厂商协议**原样透传**给下游客户端——`event:` / `id:` / 多行 data 不能丢，「只挑 data 行」的行级读取不够用。抽出的共用面是 **wire 层**（SSE 事件级分帧 + 流终止判据）；统一模型投影层不共用（eucp-ai 用不上投影）。
+
+### `mos4j-model`：`net.hegq.mos4j.model.wire`
+
+- **`SseEvent`**（record：`event` / `id` / `data`）+ **`SseEventReader`**（事件级分帧，WHATWG `text/event-stream`：空行派发、`: 注释`跳过、多行 data 用 `\n` 连接、`event:`/`id:` 字段归位（id 跨事件保留）、字段值去一个前导空格、BOM 剔除）。**有意偏差**：EOF 时宽松派发未完成事件（对齐旧行级实现的即时处理；「流算不算完整」由终止规则判定，不进分帧层）。
+- **`StreamTermination<T>`**（机制 M5 显式化）：`observeRaw(String)`（原始层哨兵，如 `[DONE]`/空 data 行）+ `observe(T)`（事件层证据）+ `isFinal()`（事件层终止事件已到）+ `streamIncomplete()`（流读完判定）。口径不变：**结束标记或结束原因任一到即完整，两者皆无才是截断；结束原因为空 ≠ 截断**。
+- 三协议的终止判据从各自 `*ChatModel` 私有循环抽到 `protocol/*` 包的 **Rules 类**（`OpenAiStreamRules` / `AnthropicStreamRules` / `GeminiStreamRules`），三个 ChatModel 全部改走 `SseEventReader` + Rules——防「两份各自演化的 SSE 处理」漂移。**M5 行为零变化，L1 语料回归全绿**。
+- **不引厂商 SDK**（openai-java / anthropic-java / google-genai）：chat 线协议稳定且实现成本已付；引 SDK 会破 I7 依赖纪律（SDK 基线仅 Jackson/RE2J/JDK）并引入 Jackson 2 vs 3 冲突。Spring AI 定位：可选适配器之一，不进内核。
+- **语料规范化**：11 份 SSE 语料补事件间空行（anthropic 8 / openai 1 / gemini 2）——旧语料靠逐行处理的宽容度存活（连续 `data:` 行在事件级分帧下会合并成一个事件，JSON 解析会炸），现在是真实线格式。
+- 守护：`SseEventReaderTest` 11 条（多行 data 合并 / 注释 / `id:` 跨事件保留 / BOM / CRLF / 单空格剥离 / EOF 宽松派发 / 停读 / 截断流与随机垃圾不抛异常）+ 三协议 Rules 终止单测 13 条 + L1 全量回归。
+- eucp-ai 消费面（最终口径）：`transport.*` + `wire.*` + `protocol/*` 的 Config/Rules（将来按需加带 catch-all 的无损 DTO）；**不含** `ChatModel` 及统一模型投影。
+- 基线：默认 reactor **930 → 954**（113 个测试类，0 失败 / 7 跳过）；全仓 `./mvnw verify` 绿。
+
+---
+
+## 未发布 —— `mos4j-model` 包布局整理：retry / catalog 子包（2026-11-18）
+
+> 动因：`mos4j-model` 根包混了三类东西——纯抽象与值类型、重试家族、模型目录三件套。`wire` / `protocol` / `decorate` / `transport` 都已经是具名子包，根级 28 个类读不出边界。
+
+### 破坏性变更（一次性，只付一次）
+
+- **retry 家族 → `net.hegq.mos4j.model.retry`**：`RetryingChatModel`（含 `Sleeper`）/ `RetryPolicy` / `RetryPolicies` / `RetryExecutors`（后两个仍是包私有，随家族一起搬）。
+- **catalog 三件套 → `net.hegq.mos4j.model.catalog`**：`ModelOption` / `ModelRegistry`（含 `Factory`）/ `SwitchableChatModel`。
+- 根包回落到 **21 个类**：`ChatModel` 与抽象/值类型 + 契约异常（`ModelTimeoutException` 等**留在根级**——宿主 catch 的是契约，不是某个子包）。同步改消费方 import（`mos4j-agent` 的 `Agent` / `Config` / `ModelCatalog` / `sdk.Mos4j` 与测试）与测试所在包（`RetryingChatModelTest` → `model.retry`、`ModelRegistryTest` → `model.catalog`）。
+- 依赖方向未变：`wire ← protocol/* ← 根级 ← retry/catalog`（两边都只依赖 `ChatModel` 与值类型），模块边界门与构建全绿。
+
+### 测试
+
+- 纯搬家、不改用例：「mos4j-model」17 类 / 140 用例（**该数字含包重组前的陈旧 surefire 报告，真实值 123**，见 2026-11-19 节）；全仓 **995 用例 / 118 类，0 失败 / 7 跳过**；`./mvnw verify` 绿。
+
+---
+
+## 未发布 —— 模型族扩展第 1 批：公共底座（`Artifact` / `TaskHandle`）+ kind 谱系与方言约定（2026-11-19）
+
+> 动因：要接的模型不止 chat（百炼全谱：视觉理解 / omni / embedding / rerank / 文件解析 / TTS / ASR / 图像视频生成 / Realtime），
+> 而当前统一模型层是 **chat 单族**、没有产物抽象、没有异步任务抽象。**建设初始不怕破坏**——趁公共契约未固化，先把底座与分层口径定死，chat 族随后下沉。
+
+### 公共底座（`net.hegq.mos4j.model` 根级，跨 kind 共享）
+
+- **`Artifact`**（sealed 接口）：二进制产物的统一表示。两种形态**用类型区分**：`InMemory`（字节在内存，构造时防御性复制；相等性按**内容**判——record 默认按数组引用判，会把同一产物说成两个东西）/ `OnDisk`（已落盘，只带位置 + 大小 + 媒体类型）。不变式 fail-closed：缺媒体类型 / 负大小 / 空位置 / 空字节一律构造即拒。
+- **二进制不进 `Message.content`**（已定口径）：上下文会爆 / 审计记不下 / 可能带凭据跟着 prompt 走。模型侧只回引用，怎么用由宿主定；产物不自己写文件（写盘是宿主的权限边界）。
+- **`TaskHandle` / `TaskStatus` / `TaskPoller`**：异步任务生命周期（图像 / 视频生成、文档解析这类「提交 → 轮询 → 取产物」）。`UNKNOWN` 状态 = 取值不认识，**不猜**（猜成功会拿空产物当结果，猜失败会误杀在跑的任务），且不算终态；**失败必带原因**（没原因的失败只能透传「任务失败了」）；底座只定义「刷新一次」，**不提供退避循环**——轮询节奏与超时是宿主策略（同取消语义：框架不替宿主做决定）。
+- 归位口径：**跨 kind 的留根级**（`Usage` 家族 / `StatusError` / `ModelTimeoutException` / 新增四件套），**chat 专属的随 chat 族下沉**（T26）。
+
+### 分层口径（先定死，避免按平台重复建设）
+
+- **kind 谱系**：chat / 视觉理解 / 对话式 omni / embedding / rerank / 文件解析 / TTS / ASR / 图像生成 / 视频生成 / Realtime；生命周期五型：一次 JSON / 一次二进制 / SSE 单向 / WebSocket 双向 / 异步提交→轮询→取产物。视觉理解与对话式 omni **复用 chat**（`ContentPart.image*` + `MULTIMODAL` + `Request.modalities` + `Message.contentParts`），不另立 kind。
+- **方言优先**：协议层目录为 `protocol.<方言>.<kind>`——**第一维度是方言（wire family），不是平台**。兼容性是方言级的：OpenAI 方言一份覆盖 DeepSeek / Kimi / Qwen 兼容模式 / 豆包 / 智谱 / SiliconFlow / OpenRouter / vLLM / Ollama / 百炼兼容模式；按平台分 = 同一套线格式写 10+ 份适配器。决策树：有现成方言就用它（平台差异走 Config）→ 「方言 + 私有扩展」仍用该方言 + 扩展钩子 → 真独有才开平台原生方言包。
+- **平台差异三收口**：`Config`（baseUrl / apiKey / 鉴权方式 / extra headers / extra body）+ **方言扩展点（SPI）**（请求体扩展 + 响应投影钩子，**不允许方言包长出 `if (provider.equals(...))`**）+ 能力位由方言给缺省、Config 覆盖。已知不等价（usage 字段名 / `finish_reason` 取值 / 思维链字段名 / 并行工具调用 / 多模态字段名）逐平台登记偏差（范式照 `docs/contract/GO-DIFF.md`）。
+- **批次计划**：T25 底座（本批）→ T26 chat 族下沉 `model.chat` → T27 协议层方言化 → T28 横切策略化 + `catalog` 按 kind 键化 → T29+ 逐 kind 落地（embedding / rerank → 文件 / TTS / ASR → 图像视频 → Realtime）。
+
+### 测试与基线
+
+- 新增 `ArtifactTest` 9 条 + `TaskHandleTest` 9 条（两种形态不混 / 字节防御性复制 / 内容相等 / 元信息不变式 / 失败必带原因 / 成功不带原因 / `UNKNOWN` 不算终态 / 产物列表不可变）。
+- 「mos4j-model」17 类 / 123 用例 → **19 类 / 141 用例，0 失败 / 0 错误 / 0 跳过**；全仓 `./mvnw verify` 绿。
+- **基线数字订正**：上一节（包布局整理）记的「17 类 / 140 用例」含包重组前的**陈旧 surefire 报告**（旧包名的 `ModelRegistryTest` 8 条 + `RetryingChatModelTest` 9 条各被算了两遍）——真实值 **123**（与 T23.6 的口径一致）。
+- 环境备注：本机沙箱下 JUnit `@TempDir` 不可用（系统临时目录禁止创建），临时文件测试落在工程内 `target/`。
+
+---
+
+## 未发布 —— `mos4j-model` chat 族下沉 `net.hegq.mos4j.model.chat`（2026-11-19）
+
+> 动因：**建设初始不怕破坏**——公共契约尚未固化时把 chat 家族一次整理到稳定层级，
+> 免得 chat 长期留在根级成为「特例根」，后续每个 kind 族都要跟这个例外搏斗。**行为零变化。**
+
+### 破坏性变更（一次性，只付一次）
+
+- **14 个类型下沉到 `net.hegq.mos4j.model.chat`**：`ChatModel` / `Request` / `Response` / `Message` / `Role` / `ContentPart` / `Tool` / `ToolCall` / `Capability` / `StreamChunk` / `StreamEmitter` + chat 专属契约异常 `EmptyResponseException` / `StreamTruncatedException` / `StreamAbortedException`。
+- **留在根级的是跨 kind 底座**：`Artifact` / `TaskHandle` / `TaskStatus` / `TaskPoller`（产物与异步任务）、`Usage` / `UsageDetails` / `InputTokenDetails` / `OutputTokenDetails` / `UsageJson`（token 计量，chat 与 embedding 共用，口径 M6 不变）、`StatusError` / `ModelTimeoutException`（宿主 catch 的契约异常）。
+- **同步改所有消费方的 import**：`mos4j-model` 内 `protocol/*` / `decorate` / `retry` / `catalog`；`mos4j-session`（`Event` / `Projection` / `Transcript` / `Session` / `context/*`）、`mos4j-tool`（`ToolRegistry`）、`mos4j-agent`（`Agent` / `Config` / `ModelCatalog` / `sdk.Mos4j`）、`mos4j-spring-boot-starter`（`Mos4jAutoConfiguration`）。消费方里的全限定名写法（`net.hegq.mos4j.model.Request` 等）一并改写，**0 处遗留**。
+- **测试随族走**：三个 L1 语料场景测试（`L1OpenAiScenariosTest` / `L1AnthropicScenariosTest` / `L1GeminiScenariosTest`）下沉到 `net.hegq.mos4j.model.chat`（它们是 chat 场景回归）；根包测试只留底座（`ArtifactTest` / `TaskHandleTest` / `UsageJsonTest` / `L1CorpusIntegrityTest` / `SseParserFuzzTest`）。
+- **依赖方向**：`chat → 根级`（chat 依赖 `Usage` 等底座）；`protocol/*` → `chat` + 根级；`decorate` / `retry` / `catalog` → `chat`；**根级不依赖 chat**。
+
+### 测试与基线
+
+- **纯搬家、不改用例**：「mos4j-model」19 类 / **141 用例**；全仓 **972 用例**（core 20 / model 141 / runtime 99（7 跳过）/ tool 359 / session 147 / agent 206），**0 失败 / 0 错误**；`./mvnw verify` 绿（含 `BoundaryRulesTest`——包前缀级依赖方向未越界）。
+
+---
+
+## 未发布 —— 协议层方言化：`protocol.<方言>.<kind>`（2026-11-19）
+
+> 动因：协议层的第一维度从「平台」换成「**方言（wire family）**」。兼容性是方言级的——OpenAI 方言一份覆盖
+> DeepSeek / Kimi / Qwen 兼容模式 / 豆包 / 智谱 / SiliconFlow / OpenRouter / vLLM / Ollama / 百炼兼容模式；
+> 按平台分 = 同一套线格式写 10+ 份适配器。包结构现在把「方言 × kind」矩阵立住：**后续加 kind 只加一格，不动已有格子**。
+
+### 破坏性变更（一次性，只付一次）
+
+- **包路径**：`protocol/openai` → `protocol/openai/chat/`、`protocol/anthropic` → `protocol/anthropic/chat/`、`protocol/gemini` → `protocol/gemini/chat/`（各 5 / 5 / 4 个类；测试包同步下沉：`OpenAiChatModelTest` / `OpenAiStreamRulesTest` / `AnthropicStreamRulesTest` / `GeminiStreamRulesTest`）。
+- **全仓 import 改写**（含 `mos4j-agent` / `mos4j-session` / `mos4j-tool` / `mos4j-spring-boot-starter` 与 examples），**0 处遗留**；**行为零变化**。
+- **eucp-ai 消费面路径变了**：`protocol.openai.X` → `protocol.openai.chat.X`（Config / Rules 同理）；**wire 层路径不变**（`wire.SseEventReader` / `wire.StreamTermination`）。
+
+### 保留项（刻意的）
+
+- **方言级共享层**（连接配置 / 鉴权 / extra body / 扩展钩子）**等第二个 kind 落地时再抽**——届时有两个实例才能定形共享面，现在抽就是猜。
+
+### 测试与基线
+
+- 纯搬家、不改用例：「mos4j-model」19 类 / **141 用例**；全仓 **972 用例**，**0 失败 / 0 错误**；`./mvnw verify` 绿。
+
+---
+
+## 未发布 —— kind 谱系的类型化身 + 目录按 kind 键化（2026-11-19）
+
+> 动因：kind 谱系之前只是文字。目录与注册表都硬绑 `ChatModel`，宿主无法回答「这一项是什么 kind」。
+
+### 新增
+
+- **`net.hegq.mos4j.model.ModelKind`**（根包）：`CHAT` / `EMBEDDING` / `RERANK` / `IMAGE` / `VIDEO` / `SPEECH` / `ASR` / `FILE` / `REALTIME`——kind = 做什么，与方言（怎么说）正交；TTS / ASR / REALTIME 不塞进 chat 的 `Capability`。
+
+### 破坏性变更
+
+- **`catalog.ModelOption` 泛型化**：`record ModelOption<T>(ModelKind kind, String id, String label, T model)`；工厂 `ModelOption.chat(id, model)` / `ModelOption.chat(id, label, model)`；旧构造器 `ModelOption(id, label, chat)` 与访问器 `chat()` **已删除**（改用 `model()`）。消费方（`Agent` / `Config` / `sdk.Mos4j` / 测试）全部改 import 与类型。
+- **agent `ModelCatalog` 按 kind 校验**：`List<ModelOption<ChatModel>>`；`kind != CHAT` 在装配期报错（`mos4j: 模型目录里的 X 不是 chat 模型（kind=Y）`）。
+
+### 刻意不改（口径写进 API §3.21.4）
+
+- 装饰器壳（`ChatModelDecorator` / `RetryingChatModel` / 缓存 / 日志 / 超时 / 降级）仍锁 `ChatModel`：各 kind 调用签名不同、无共同超类型可装饰，硬抽只能靠反射或 `Object`。
+- `catalog.ModelRegistry` 仍产出 `ChatModel`：按 kind 键化推迟到第一个非 chat kind 落地。
+- 重试**机制**（`RetryPolicy` + `RetryExecutors`）本就 kind 无关（分类器是注入的），不动。
+
+### 测试与基线
+
+- 新增 `ModelOptionTest`（7 条）+ agent kind 校验（1 条）：「mos4j-model」**148 用例**、`mos4j-agent` **207**；全仓 **980 用例**，**0 失败 / 0 错误**，7 跳过；`./mvnw verify` 绿。
+
+---
+
+## 未发布 —— `examples/model` 跟上装配面（2026-11-19）
+
+> 动因：模型模块把「调用面之外」的东西攒齐了（retry / decorate / catalog / wire / kind 谱系 / 异步任务与产物），
+> 而示例还停在「直连一个 `ChatModel`」。示例定位是**装配说明书**，装配面缺了就等于只教了一半。
+
+### 新增
+
+- **`ModelSurface`**（`examples/model`）：装配侧的六个真问题各一段可读代码——
+  `registry()`（名字 → 工厂，未知名字 fail-closed）、`catalog(...)`（`ModelOption<ChatModel>` 带 kind / label）、
+  `decorate(...)`（**Observation → Fallback → Retry → Timeout → 协议模型**，空参数 = 不装那一层）、
+  `withCache(...)`（只缓存非流式成功，故**不进**默认链）、`awaitTerminal(...)`（宿主的轮询循环：刷新到终态或超时报错，
+  `UNKNOWN` **不算**终态）、`requireArtifact` / `describe` / `promoteToDisk`（产物取用与**由宿主**落盘）。
+- **`ScriptedTaskPoller`**：标注「本地替身，不是某个厂商的实现」；脚本用完即抛 `IllegalStateException`（不静默重复最后一步）。
+- **`ModelExample.main` 收尾打印装配面**（目录 / 装饰 / 异步 / 产物四段），`assemble(...)` 改为走 `ModelRegistry`
+  （未知协议 fail-closed 并列出已注册名字）。
+
+### 测试与基线
+
+- 新增 `ModelSurfaceTest` **13 条** + 原有 `ModelExampleTest` 6 条，`examples/model` 自 **6 → 19 条**；
+  examples 侧 **32 → 45 条**（`-Pexamples`）/ **35 → 48 条**（`-Pexamples,mcp`）。
+- 四套 reactor 复跑（2026-11-19）：默认 **980 / 0 / 0 / 7**、`-Pstarter` **1004**、`-Pexamples` **1025**、`-Pexamples,mcp` **1028**，均为 `0 失败 / 0 错误`。（下一节把 examples 侧推到 1046 / 1049。）
+- 环境备注：本机沙箱禁写 `~/.m2`，`dependency:analyze` 本轮**未能执行**（不是无告警，是没跑成）；
+  `@TempDir` 同样不可用，落盘用例写在 `target/model-surface-test/` 下并自行清理。
+
+---
+
+## 未发布 —— `examples/model` 变循环对话 + 配置收进 Java 常量（2026-11-19）
+
+> 动因：纯模型示例只跑「一个问题」看不出「状态归宿主」到底长什么样；而配置散在
+> `ModelExample.PROTOCOL` 与注册表的字面量里，换模型要翻代码找字符串。
+
+### 新增
+
+- **`ModelChatLoop`**（`examples/model`）：循环对话里**宿主自己那半边**——历史是一个列表，
+  每轮 `user` + `assistant` 整段带上重发。三条口径：**失败不进历史**（抛异常就什么都不追加，
+  宿主可原样重问）、**空回答不算一轮**（既无正文也无工具调用时抛错且不追加，否则下一轮
+  请求会带着一条空 assistant 消息）、**历史不可变出去**（`history()` 返只读副本）。
+  `reset()` 保留系统提示词（它是装配的一部分，不是对话的一部分）。
+- **`ModelExample --loop`**：交互模式，`/exit`·`/quit`·EOF 退出，`/reset` 清历史，
+  `/history` 报条数与轮数；**单轮失败不带走整个进程**（打印原因 + 根因，继续读下一行）。
+  `runLoop(model, reader, out)` 的输入输出都是入参，用例不开真终端。
+- **`ModelConfig`**（`examples/model`）：配置全部是 Java 常量——协议、三方言的
+  密钥 / 基址 / 模型名、环境变量名（唯一真源）、缺省模型名、系统提示词、超时、
+  循环命令词与提示符、**循环是否流式（`STREAM_IN_LOOP`）**。取值顺序：**常量 → 同名环境变量 → 协议缺省**。
+  密钥常量默认留空（写进源码会跟着 git / jar / 日志传播）；`Provider.toString()` **给密钥打码**。
+  `ModelSurface.registry()` 的缺省模型名改为引用 `ModelConfig.DEFAULT_*_MODEL`（去掉字面量副本）。
+- **循环对话可走流式**：`STREAM_IN_LOOP = true` 时 `runLoop` 走 `ModelChatLoop.askStream`，
+  增量实时打到**注入的** `PrintStream`（不是 `System.out`——否则终端看着正常、用例里一个字都没有）；
+  **模型不支持流式时自动退回非流式**，并在开头打一行 `[模式]` 说清是哪一种（不静默换挡）。
+
+### 测试与基线
+
+- 新增 `ModelConfigTest` **8 条**（三档取值顺序 / 常量空时用环境变量 / 只剩缺省 /
+  各方言读各自的环境变量名 / 空白同于未设 / 密钥不外泄 / 未知协议 fail-closed / 装配入口同源）
+  + `ModelChatLoopTest` **13 条**（逐轮历史 / 副本与轮数 / reset 留提示词 / 空提示词不带 system /
+  失败不改历史 / 空正文不算一轮 / 空问题直接拒 / 流式也进历史 / 命令词与 EOF /
+  单轮失败不中断 / 流式增量进注入的流且不重复 / 不支持流式时退回非流式），
+  `examples/model` 自 **19 → 40 条**；examples 侧 **45 → 66 条**（`-Pexamples`）/
+  **48 → 69 条**（`-Pexamples,mcp`）。
+- 四套 reactor 复跑（2026-11-19）：默认 **980 / 0 / 0 / 7**（116 个测试类）、`-Pstarter` **1004**、
+  `-Pexamples` **1046**、`-Pexamples,mcp` **1049**，均为 `0 失败 / 0 错误`。（本节之后又收掉了 chat 示例里的异步/产物演示，见下。）
+- 真实端点验证：本地起了一个假 OpenAI 端点（`HttpServer` 脚本）跑 `--loop`，
+  服务端逐轮收到的消息条数为 2 → 4 → 6（system 只一条、assistant 原样带回）；
+  连不上的端点走「这一轮失败 + 根因 `ConnectException`，历史未改动」路径。
+
+---
+
+## 未发布 —— 收掉 chat 示例里的异步任务 / 产物演示（2026-11-19）
+
+> 动因：那两个底座（`TaskHandle` / `TaskStatus` / `TaskPoller` + `Artifact`）服务的是
+> 图像 / 视频生成、文档解析这类 kind，而 **chat 是同步的「一次请求换一次响应」**，
+> 没有任务号、没有轮询。在 chat 示例里演一段假状态转移 + 一张编造的 4 字节 PNG，
+> 恰好违反本示例自己写的「不假装它们能跑」。
+
+### 删除
+
+- **`ModelSurface` 去掉 `awaitTerminal` / `requireArtifact` / `describe` / `promoteToDisk`**，
+  类注释从「四件事」收为「两件事」（装配 + 横切能力），并说明为什么只有两件。
+- **删掉 `ScriptedTaskPoller`**（它只服务那段演示）；
+- **`ModelExample.printAssembly` 去掉 `[异步]` / `[产物]` 两段**（含编造的 `fakePng` 字节）；
+- **删掉 `ModelSurfaceTest` 的 5 条异步/产物用例**——那些语义由 mos4j-model 自己的
+  `TaskHandleTest`（9 条）/ `ArtifactTest`（9 条）守，在示例里再抄一遍只是重叠覆盖。
+
+### 测试与基线
+
+- `ModelSurfaceTest` **13 → 8 条**，`examples/model` **40 → 35 条**；examples 侧
+  **66 → 61 条**（`-Pexamples`）/ **69 → 64 条**（`-Pexamples,mcp`）。
+- 四套 reactor 复跑（2026-11-19）：默认 **980 / 0 / 0 / 7**、`-Pstarter` **1004**、
+  `-Pexamples` **1041**、`-Pexamples,mcp` **1044**，均为 `0 失败 / 0 错误`。
+- 主程序实跑确认输出只剩 `[能力]`、`[非流式]`、`[流式]`、`[多轮]`、`[目录]`、`[装饰]`、`[循环]`。
+
+### 留给以后的
+
+异步任务与产物的真场景示例（提交 → 轮询 → 取产物）随第一个非 chat kind 落地时单独立模块；
+届时复用同一套口径（刷新一次归框架、节奏与超时归宿主、产物不自己写文件）。

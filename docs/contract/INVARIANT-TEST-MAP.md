@@ -55,7 +55,7 @@
 | F-20 | **取消原因**（首次原因生效 / 未取消无原因 / 原因进异常与 `turn/end.error`） | `CancellationTokenCauseTest`（8 条）+ `RuntimeKnobsTest.cancellationReasonReachesTurnEndAndTheThrownError` | mos4j-core / mos4j-agent | ✅ 本批（2026-11-08，Go 差异 #11） |
 | F-21 | **运行期可调参数**（并发 / 轮数上限 / 参数级规则热替换 / 未装配则 fail-closed） | `RuntimeKnobsTest`（5 条） | mos4j-agent | ✅ 本批（2026-11-08，Go 差异 #12） |
 | F-22 | **本地缓存装饰器**（只缓存非流式成功 / 取消优先于命中 / 键覆盖完整请求 / 失败不缓存） | `CachingChatModelTest`（10 条） | mos4j-model | ✅ 本批（2026-11-08，Go 差异 #13） |
-| F-23 | **示例程序集**（独立模块 / 独立 profile / testkit 仅 test scope / 用例不碰网络） | `examples/*/src/test/**`（`-Pexamples` 25 条：minimal 2 / chat 4 / agents 2 / skills 4 / subagent 5 / recovery 3 + `StubModelTest` 5；`-Pexamples,mcp` 28 条：再加 mcp 3）+ `StubModelTest`（5 条） | examples（不进默认 reactor） | ✅ 本批（2026-11-08，Go 差异 #10） |
+| F-23 | **示例程序集**（独立模块 / 独立 profile / testkit 仅 test scope / 用例不碰网络） | `examples/*/src/test/**`（`-Pexamples` 61 条：testkit 5 / minimal 2 / model 35 / chat 5 / agents 2 / skills 4 / subagent 5 / recovery 3；`-Pexamples,mcp` 64 条：再加 mcp 3） | examples（不进默认 reactor） | ✅ 本批（2026-11-08，Go 差异 #10；2026-11-19 模型族扩展后 model 增至 19，同日循环对话 + 配置常量 + 流式开关至 40，又收掉异步/产物演示后为 35） |
 
 **覆盖核对**：I1（3 项）、I2（2）、I3（1）、I4（3）、I5（3）、I6（1）、I7（机械门 + 边界门）、M1–M10（各 1+）、C-1（取消贯通，J6 + 加固批次）、FZ-1（fuzz，J6）、F-2（工具面守护，B13 + J7）、F-3（技能机制，J7）、F-4（路径强制动态写根与状态自述，Q1/Q2′）、F-5（协议旋钮门面可达性，Q4）、F-6（policy 可见性与守卫同源）、F-7（装饰器语义）、F-8（模型目录与切换）、F-9（快照补充与关闭责任）、F-10（MCP 认证 / 资源 / 联动 / 分节）、F-11（上下文文件发现规则）、F-12（运行期根管理与读写分离）、F-13（压缩三开关）、F-14（子代理）、F-15（续跑）、F-16（审批先验）、F-17（会话派生读）、F-18（协议注册表）、F-19（提示词构建器）、F-20（取消原因）、F-21（运行期可调参数）、F-22（本地缓存装饰器）、F-23（示例程序集）→ 无空项。
 
