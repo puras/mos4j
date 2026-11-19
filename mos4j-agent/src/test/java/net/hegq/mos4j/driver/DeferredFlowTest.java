@@ -2,11 +2,11 @@ package net.hegq.mos4j.driver;
 
 import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.session.Session;
 import net.hegq.mos4j.session.Event;
@@ -50,24 +50,24 @@ class DeferredFlowTest {
         @Override
         public Response chat(Request request, net.hegq.mos4j.core.CancellationToken cancellation) {
             List<String> names = request.tools() == null ? List.of()
-                    : request.tools().stream().map(net.hegq.mos4j.model.Tool::name).toList();
+                    : request.tools().stream().map(net.hegq.mos4j.model.chat.Tool::name).toList();
             seenToolNames.add(names);
             return steps.get(round.getAndIncrement()).response();
         }
 
         @Override
-        public Response chatStream(Request request, net.hegq.mos4j.model.StreamEmitter emitter) {
+        public Response chatStream(Request request, net.hegq.mos4j.model.chat.StreamEmitter emitter) {
             return chat(request, (net.hegq.mos4j.core.CancellationToken) null);
         }
 
         @Override
-        public Response chatStream(Request request, net.hegq.mos4j.model.StreamEmitter emitter,
+        public Response chatStream(Request request, net.hegq.mos4j.model.chat.StreamEmitter emitter,
                                    net.hegq.mos4j.core.CancellationToken cancellation) {
             return chat(request, cancellation);
         }
 
         @Override
-        public java.util.Set<net.hegq.mos4j.model.Capability> capabilities() {
+        public java.util.Set<net.hegq.mos4j.model.chat.Capability> capabilities() {
             return java.util.Set.of();
         }
     }

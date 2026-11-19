@@ -3,13 +3,13 @@ package net.hegq.mos4j.driver;
 import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.ModelOption;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamEmitter;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.catalog.ModelOption;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamEmitter;
+import net.hegq.mos4j.model.chat.Message;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.session.Session;
 import org.junit.jupiter.api.Test;
@@ -70,10 +70,10 @@ class ModelCatalogTest {
         }
     }
 
-    private static List<ModelOption> options(ChatModel... models) {
-        List<ModelOption> options = new ArrayList<>();
+    private static List<ModelOption<ChatModel>> options(ChatModel... models) {
+        List<ModelOption<ChatModel>> options = new ArrayList<>();
         for (ChatModel model : models) {
-            options.add(new ModelOption(model instanceof CountingModel counting
+            options.add(ModelOption.chat(model instanceof CountingModel counting
                     ? counting.name : "m", model));
         }
         return options;
@@ -176,10 +176,22 @@ class ModelCatalogTest {
     }
 
     @Test
+    void aNonChatKindIsRejected() {
+        // 目录的切换语义只对 chat 成立：标错 kind ��项就是装配错误（不静默忽略）。
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> Config.builder()
+                        .models(List.of(new ModelOption<>(net.hegq.mos4j.model.ModelKind.EMBEDDING,
+                                "e", "嵌入", new CountingModel("e"))))
+                        .build());
+
+        assertTrue(error.getMessage().contains("不是 chat 模型"), error.getMessage());
+    }
+
+    @Test
     void thePublicDescriptionCarriesNoCredentials() {
         CountingModel model = new CountingModel("a");
         Agent agent = Agent.of(Config.builder()
-                .models(List.of(new ModelOption("a", "展示名", model)))
+                .models(List.of(ModelOption.chat("a", "展示名", model)))
                 .build());
 
         String description = agent.describe().toString();

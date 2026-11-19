@@ -1,9 +1,9 @@
 package net.hegq.mos4j.session;
 
 import net.hegq.mos4j.model.InputTokenDetails;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.Message;
 import net.hegq.mos4j.model.OutputTokenDetails;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.model.UsageDetails;
 
@@ -276,7 +276,7 @@ public final class Session {
             Set<String> answered = new LinkedHashSet<>();
             for (Event event : events) {
                 if (event.kind() == EventKind.TOOL_CALL) {
-                    net.hegq.mos4j.model.ToolCall call = event.toolCall();
+                    net.hegq.mos4j.model.chat.ToolCall call = event.toolCall();
                     if (call == null || call.id() == null || call.id().isEmpty()) {
                         continue;
                     }

@@ -5,7 +5,7 @@ import net.hegq.mos4j.core.ToolContext;
 import net.hegq.mos4j.driver.LoopDriver;
 import net.hegq.mos4j.driver.ReActPlanner;
 import net.hegq.mos4j.driver.RunContext;
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.session.Session;
 import net.hegq.mos4j.tool.Tool;
 import net.hegq.mos4j.tool.ToolRegistry;

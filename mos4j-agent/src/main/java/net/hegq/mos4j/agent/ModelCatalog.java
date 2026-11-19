@@ -1,8 +1,9 @@
 package net.hegq.mos4j.agent;
 
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.ModelOption;
-import net.hegq.mos4j.model.SwitchableChatModel;
+import net.hegq.mos4j.model.ModelKind;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.catalog.ModelOption;
+import net.hegq.mos4j.model.catalog.SwitchableChatModel;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,7 +21,7 @@ import java.util.Map;
  */
 public final class ModelCatalog {
 
-    private final Map<String, ModelOption> byId = new LinkedHashMap<>();
+    private final Map<String, ModelOption<ChatModel>> byId = new LinkedHashMap<>();
     private final List<String> order = new ArrayList<>();
     private final SwitchableChatModel shell;
     private String currentId;
@@ -32,13 +33,17 @@ public final class ModelCatalog {
      * @param defaultId 默认模型 ID（空 = 第一项）
      * @throws IllegalArgumentException 目录不合法
      */
-    public ModelCatalog(List<ModelOption> options, String defaultId) {
+    public ModelCatalog(List<ModelOption<ChatModel>> options, String defaultId) {
         if (options == null || options.isEmpty()) {
             throw new IllegalArgumentException("mos4j: 模型目录不能为空");
         }
-        for (ModelOption option : options) {
+        for (ModelOption<ChatModel> option : options) {
             if (option == null) {
                 throw new IllegalArgumentException("mos4j: 模型目录里有项是 null");
+            }
+            if (option.kind() != ModelKind.CHAT) {
+                throw new IllegalArgumentException("mos4j: 模型目录里的 " + option.id()
+                        + " 不是 chat 模型（kind=" + option.kind() + "）");
             }
             if (byId.containsKey(option.id())) {
                 throw new IllegalArgumentException("mos4j: 模型目录里 ID 重复：" + option.id());
@@ -54,7 +59,7 @@ public final class ModelCatalog {
             initial = defaultId;
         }
         this.currentId = initial;
-        this.shell = new SwitchableChatModel(byId.get(initial).chat());
+        this.shell = new SwitchableChatModel(byId.get(initial).model());
     }
 
     /**
@@ -64,12 +69,12 @@ public final class ModelCatalog {
      * @throws IllegalArgumentException ID 不在目录里（不静默无效）
      */
     public void set(String id) {
-        ModelOption option = byId.get(id);
+        ModelOption<ChatModel> option = byId.get(id);
         if (option == null) {
             throw new IllegalArgumentException("mos4j: 模型 " + id + " 不在目录里");
         }
         currentId = id;
-        shell.set(option.chat());
+        shell.set(option.model());
     }
 
     /** 当前模型 ID。 */
@@ -78,8 +83,8 @@ public final class ModelCatalog {
     }
 
     /** 目录（保序）。 */
-    public List<ModelOption> list() {
-        List<ModelOption> out = new ArrayList<>(order.size());
+    public List<ModelOption<ChatModel>> list() {
+        List<ModelOption<ChatModel>> out = new ArrayList<>(order.size());
         for (String id : order) {
             out.add(byId.get(id));
         }
@@ -97,11 +102,11 @@ public final class ModelCatalog {
      * @throws IllegalArgumentException ID 不在目录里
      */
     public ChatModel chat(String id) {
-        ModelOption option = byId.get(id);
+        ModelOption<ChatModel> option = byId.get(id);
         if (option == null) {
             throw new IllegalArgumentException("mos4j: 模型 " + id + " 不在目录里");
         }
-        return option.chat();
+        return option.model();
     }
 
     /**

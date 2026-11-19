@@ -124,35 +124,35 @@ class Mos4jStarterKnobsTest {
     static class HostModelConfiguration {
 
         @Bean
-        net.hegq.mos4j.model.ChatModel hostModel() {
-            return new net.hegq.mos4j.model.ChatModel() {
+        net.hegq.mos4j.model.chat.ChatModel hostModel() {
+            return new net.hegq.mos4j.model.chat.ChatModel() {
                 @Override
-                public net.hegq.mos4j.model.Response chat(net.hegq.mos4j.model.Request request) {
-                    return new net.hegq.mos4j.model.Response(
-                            net.hegq.mos4j.model.Message.assistant("ok"), null, "stop");
+                public net.hegq.mos4j.model.chat.Response chat(net.hegq.mos4j.model.chat.Request request) {
+                    return new net.hegq.mos4j.model.chat.Response(
+                            net.hegq.mos4j.model.chat.Message.assistant("ok"), null, "stop");
                 }
 
                 @Override
-                public net.hegq.mos4j.model.Response chat(net.hegq.mos4j.model.Request request,
+                public net.hegq.mos4j.model.chat.Response chat(net.hegq.mos4j.model.chat.Request request,
                                                         net.hegq.mos4j.core.CancellationToken cancellation) {
                     return chat(request);
                 }
 
                 @Override
-                public net.hegq.mos4j.model.Response chatStream(net.hegq.mos4j.model.Request request,
-                                                               net.hegq.mos4j.model.StreamEmitter emitter) {
+                public net.hegq.mos4j.model.chat.Response chatStream(net.hegq.mos4j.model.chat.Request request,
+                                                               net.hegq.mos4j.model.chat.StreamEmitter emitter) {
                     return chat(request);
                 }
 
                 @Override
-                public net.hegq.mos4j.model.Response chatStream(net.hegq.mos4j.model.Request request,
-                                                               net.hegq.mos4j.model.StreamEmitter emitter,
+                public net.hegq.mos4j.model.chat.Response chatStream(net.hegq.mos4j.model.chat.Request request,
+                                                               net.hegq.mos4j.model.chat.StreamEmitter emitter,
                                                                net.hegq.mos4j.core.CancellationToken cancellation) {
                     return chat(request);
                 }
 
                 @Override
-                public java.util.Set<net.hegq.mos4j.model.Capability> capabilities() {
+                public java.util.Set<net.hegq.mos4j.model.chat.Capability> capabilities() {
                     return java.util.Set.of();
                 }
             };

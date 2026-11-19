@@ -9,8 +9,9 @@ import net.hegq.mos4j.hook.ApprovalChannel;
 import net.hegq.mos4j.hook.GuardBus;
 import net.hegq.mos4j.hook.HookBus;
 import net.hegq.mos4j.hook.PostHook;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.catalog.ModelOption;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.sandbox.SandboxBoundary;
 import net.hegq.mos4j.tool.skill.SkillCatalog;
 
@@ -45,7 +46,7 @@ public final class Config {
     private final CompactionService compaction;
     private final net.hegq.mos4j.context.CompactionFailurePolicy compactionFailurePolicy;
     private final java.util.function.Consumer<Throwable> onCompactionFailure;
-    private final java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
+    private final java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk;
     private final ToolOutputLimiter outputLimiter;
     private final SkillCatalog skills;
     private final net.hegq.mos4j.tool.subagent.SubAgentCatalog subAgents;
@@ -59,7 +60,7 @@ public final class Config {
     private final PolicySlot policySlot = new PolicySlot();
     private final ParamPolicySlot paramPolicySlot = new ParamPolicySlot();
     private final boolean paramPolicyInstalled;
-    private final java.util.List<net.hegq.mos4j.model.ModelOption> models;
+    private final java.util.List<ModelOption<ChatModel>> models;
     private final String defaultModelId;
     private final ModelCatalog modelCatalog;
     private final java.util.List<DescribeContributor> describeContributors;
@@ -245,7 +246,7 @@ public final class Config {
      *
      * <p>只在 {@link #stream()} 为 {@code true} 时被调用；每个增量块一次。
      */
-    public java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk() {
+    public java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk() {
         return onChunk;
     }
 
@@ -379,7 +380,7 @@ public final class Config {
         private CompactionService compaction;
         private net.hegq.mos4j.context.CompactionFailurePolicy compactionFailurePolicy;
         private java.util.function.Consumer<Throwable> onCompactionFailure;
-        private java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
+        private java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk;
         private ToolOutputLimiter outputLimiter;
         private SkillCatalog skills;
         private net.hegq.mos4j.tool.subagent.SubAgentCatalog subAgents;
@@ -391,7 +392,7 @@ public final class Config {
         private java.util.function.Supplier<String> mcpInstructions;
         private net.hegq.mos4j.policy.ToolNamePolicy policy;
         private net.hegq.mos4j.policy.ParamPolicy paramPolicy;
-        private java.util.List<net.hegq.mos4j.model.ModelOption> models;
+        private java.util.List<ModelOption<ChatModel>> models;
         private String defaultModelId;
         private java.util.List<DescribeContributor> describeContributors;
         private java.util.List<AutoCloseable> closers;
@@ -565,7 +566,7 @@ public final class Config {
          * @param onChunk 增量回调（可空 = 丢弃增量）
          * @return this
          */
-        public Builder onChunk(java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk) {
+        public Builder onChunk(java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk) {
             this.onChunk = onChunk;
             return this;
         }
@@ -718,7 +719,7 @@ public final class Config {
          * @param models 目录项（保序）
          * @return this
          */
-        public Builder models(java.util.List<net.hegq.mos4j.model.ModelOption> models) {
+        public Builder models(java.util.List<ModelOption<ChatModel>> models) {
             this.models = models;
             return this;
         }
@@ -814,7 +815,7 @@ public final class Config {
      *
      * @return 目录项（保序）
      */
-    public List<net.hegq.mos4j.model.ModelOption> models() {
+    public List<ModelOption<ChatModel>> models() {
         return models;
     }
 

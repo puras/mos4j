@@ -1,6 +1,6 @@
 package net.hegq.mos4j.execpath;
 
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.tool.FunctionTool;
 import net.hegq.mos4j.tool.Tool;
 import net.hegq.mos4j.tool.ToolRegistry;
@@ -298,11 +298,11 @@ class ExecPathTest {
         registry.register(net.hegq.mos4j.tool.FunctionTool.of("second", "二", null,
                 args -> args));
 
-        List<net.hegq.mos4j.model.Tool> first = registry.list();
-        List<net.hegq.mos4j.model.Tool> second = registry.list();
+        List<net.hegq.mos4j.model.chat.Tool> first = registry.list();
+        List<net.hegq.mos4j.model.chat.Tool> second = registry.list();
 
         assertEquals(List.of("first", "second"),
-                first.stream().map(net.hegq.mos4j.model.Tool::name).toList(),
+                first.stream().map(net.hegq.mos4j.model.chat.Tool::name).toList(),
                 "清单顺序 = 注册顺序");
         assertEquals(first, second, "跨调用顺序与内容稳定（每轮重组装的基线）");
         assertNotNull(first.get(0).parameters(), "schema 来自注册期缓存");

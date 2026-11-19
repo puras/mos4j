@@ -4,12 +4,12 @@ import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
 import net.hegq.mos4j.context.PromptSections;
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamEmitter;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamEmitter;
+import net.hegq.mos4j.model.chat.Message;
 import net.hegq.mos4j.session.Session;
 import net.hegq.mos4j.tool.skill.SkillCatalog;
 import org.junit.jupiter.api.Test;
@@ -75,7 +75,7 @@ class PromptBuilderTest {
             Request request = last.get();
             List<Message> messages = request.messages();
             for (Message message : messages) {
-                if (message.role() == net.hegq.mos4j.model.Role.SYSTEM) {
+                if (message.role() == net.hegq.mos4j.model.chat.Role.SYSTEM) {
                     return message.content();
                 }
             }

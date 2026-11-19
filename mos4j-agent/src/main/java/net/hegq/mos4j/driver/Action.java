@@ -1,6 +1,6 @@
 package net.hegq.mos4j.driver;
 
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.model.Usage;
 
 import java.util.List;

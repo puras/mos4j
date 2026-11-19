@@ -4,7 +4,7 @@ import net.hegq.mos4j.context.CompactionFailurePolicy;
 import net.hegq.mos4j.context.CompactionService;
 import net.hegq.mos4j.context.ToolOutputLimiter;
 import net.hegq.mos4j.execpath.ExecPath;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.Message;
 import net.hegq.mos4j.session.Session;
 import net.hegq.mos4j.tool.ToolRegistry;
 import net.hegq.mos4j.tool.skill.SkillTool;
@@ -28,7 +28,7 @@ public final class RunContext {
     private final IntSupplier maxDecisionRounds;
     private final String systemPrompt;
     private final boolean stream;
-    private final Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
+    private final Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk;
     private final ExecPath.Security security;
     private final CompactionService compaction;
     private final CompactionFailurePolicy compactionFailurePolicy;
@@ -100,7 +100,7 @@ public final class RunContext {
     }
 
     /** 流式文本增量回调（可空 = 丢弃增量）。 */
-    public Consumer<net.hegq.mos4j.model.StreamChunk> onChunk() {
+    public Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk() {
         return onChunk;
     }
 
@@ -194,7 +194,7 @@ public final class RunContext {
         private IntSupplier maxDecisionRounds = () -> 0;
         private String systemPrompt;
         private boolean stream;
-        private Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
+        private Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk;
         private ExecPath.Security security;
         private CompactionService compaction;
         private CompactionFailurePolicy compactionFailurePolicy;
@@ -262,7 +262,7 @@ public final class RunContext {
             return this;
         }
 
-        public Builder onChunk(Consumer<net.hegq.mos4j.model.StreamChunk> onChunk) {
+        public Builder onChunk(Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk) {
             this.onChunk = onChunk;
             return this;
         }

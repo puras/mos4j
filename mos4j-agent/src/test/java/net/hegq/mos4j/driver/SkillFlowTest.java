@@ -3,13 +3,13 @@ package net.hegq.mos4j.driver;
 import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamEmitter;
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamEmitter;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;
@@ -69,7 +69,7 @@ class SkillFlowTest {
         @Override
         public Response chat(Request request, CancellationToken cancellation) {
             List<String> names = request.tools() == null ? List.of()
-                    : request.tools().stream().map(net.hegq.mos4j.model.Tool::name).toList();
+                    : request.tools().stream().map(net.hegq.mos4j.model.chat.Tool::name).toList();
             seenToolNames.add(names);
             seenSystem.add(request.messages().isEmpty() ? "" : String.valueOf(request.messages().get(0).content()));
             return steps.get(round.getAndIncrement());

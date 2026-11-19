@@ -1,6 +1,6 @@
 package net.hegq.mos4j.tool;
 
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.tool.searchtools.ActivateTool;
 import net.hegq.mos4j.tool.searchtools.DeferredToolCatalog;
 import net.hegq.mos4j.tool.searchtools.ToolSearchTool;
@@ -95,9 +95,9 @@ public final class ToolRegistry {
      * <p>非 deferred 工具始终出现；deferred 工具只在激活后才出现（见 {@link #registerDeferred}）。
      * 被可见性槽挡住的工具不出现（模型看不见的工具不该占工具清单的名额）。
      */
-    public List<net.hegq.mos4j.model.Tool> list() {
+    public List<net.hegq.mos4j.model.chat.Tool> list() {
         synchronized (lock) {
-            List<net.hegq.mos4j.model.Tool> out = new ArrayList<>(tools.size());
+            List<net.hegq.mos4j.model.chat.Tool> out = new ArrayList<>(tools.size());
             Set<String> active = new LinkedHashSet<>(deferredCatalog.activeTools());
             for (Map.Entry<String, net.hegq.mos4j.tool.Tool> entry : tools.entrySet()) {
                 String name = entry.getKey();
@@ -109,7 +109,7 @@ public final class ToolRegistry {
                 if (!visibleTo(name)) {
                     continue; // 可见性槽挡住（模型看不见）
                 }
-                out.add(new net.hegq.mos4j.model.Tool(tool.name(), tool.description(),
+                out.add(new net.hegq.mos4j.model.chat.Tool(tool.name(), tool.description(),
                         schemas.get(name)));
             }
             return out;
@@ -127,7 +127,7 @@ public final class ToolRegistry {
      */
     public List<String> visibleNames() {
         List<String> out = new ArrayList<>();
-        for (net.hegq.mos4j.model.Tool tool : list()) {
+        for (net.hegq.mos4j.model.chat.Tool tool : list()) {
             out.add(tool.name());
         }
         return out;

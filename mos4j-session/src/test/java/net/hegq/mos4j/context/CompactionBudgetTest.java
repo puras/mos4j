@@ -1,8 +1,8 @@
 package net.hegq.mos4j.context;
 
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.Role;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.Role;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;

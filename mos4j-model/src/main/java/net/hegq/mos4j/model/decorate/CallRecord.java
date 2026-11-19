@@ -1,7 +1,7 @@
 package net.hegq.mos4j.model.decorate;
 
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
 
 import java.time.Duration;
 

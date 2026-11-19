@@ -13,7 +13,7 @@ import net.hegq.mos4j.hook.GuardEvent;
 import net.hegq.mos4j.hook.HookBus;
 import net.hegq.mos4j.hook.HookEvent;
 import net.hegq.mos4j.hook.PostHook;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.tool.Tool;
 import net.hegq.mos4j.tool.ToolArgs;
 import net.hegq.mos4j.tool.ToolRegistry;

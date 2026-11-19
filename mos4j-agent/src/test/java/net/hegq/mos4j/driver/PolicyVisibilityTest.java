@@ -4,12 +4,12 @@ import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
 import net.hegq.mos4j.core.CancellationToken;
 import net.hegq.mos4j.hook.GuardBus;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamEmitter;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamEmitter;
+import net.hegq.mos4j.model.chat.Message;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.policy.ToolNamePolicy;
 import net.hegq.mos4j.session.Session;
@@ -43,7 +43,7 @@ class PolicyVisibilityTest {
 
         @Override
         public Response chat(Request request) {
-            seenTools.add(request.tools().stream().map(net.hegq.mos4j.model.Tool::name).toList());
+            seenTools.add(request.tools().stream().map(net.hegq.mos4j.model.chat.Tool::name).toList());
             return new Response(Message.assistant("好的"), NO_USAGE, Response.FINISH_END_TURN);
         }
 

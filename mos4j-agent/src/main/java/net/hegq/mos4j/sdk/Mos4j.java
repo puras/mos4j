@@ -17,13 +17,14 @@ import net.hegq.mos4j.hook.ApprovalChannel;
 import net.hegq.mos4j.hook.GuardBus;
 import net.hegq.mos4j.hook.HookBus;
 import net.hegq.mos4j.hook.PostHook;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.protocol.anthropic.AnthropicChatModel;
-import net.hegq.mos4j.model.protocol.anthropic.AnthropicConfig;
-import net.hegq.mos4j.model.protocol.gemini.GeminiChatModel;
-import net.hegq.mos4j.model.protocol.gemini.GeminiConfig;
-import net.hegq.mos4j.model.protocol.openai.OpenAiChatModel;
-import net.hegq.mos4j.model.protocol.openai.OpenAiConfig;
+import net.hegq.mos4j.model.catalog.ModelOption;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.protocol.anthropic.chat.AnthropicChatModel;
+import net.hegq.mos4j.model.protocol.anthropic.chat.AnthropicConfig;
+import net.hegq.mos4j.model.protocol.gemini.chat.GeminiChatModel;
+import net.hegq.mos4j.model.protocol.gemini.chat.GeminiConfig;
+import net.hegq.mos4j.model.protocol.openai.chat.OpenAiChatModel;
+import net.hegq.mos4j.model.protocol.openai.chat.OpenAiConfig;
 import net.hegq.mos4j.sandbox.LocalRunner;
 import net.hegq.mos4j.sandbox.PathScope;
 import net.hegq.mos4j.sandbox.PathScopeProbe;
@@ -299,7 +300,7 @@ public final class Mos4j {
         private GuardBus guards;
         private net.hegq.mos4j.policy.ToolNamePolicy policy;
         private net.hegq.mos4j.policy.ParamPolicy paramPolicy;
-        private List<net.hegq.mos4j.model.ModelOption> models;
+        private List<ModelOption<ChatModel>> models;
         private String defaultModelId;
         private HookBus hooks;
         private ApprovalChannel approvals;
@@ -308,7 +309,7 @@ public final class Mos4j {
         private CompactionService compaction;
         private net.hegq.mos4j.context.CompactionFailurePolicy compactionFailurePolicy;
         private java.util.function.Consumer<Throwable> onCompactionFailure;
-        private java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk;
+        private java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk;
         private Duration summaryTimeout;
         private boolean disableCompaction;
         private Path contextFileDir;
@@ -677,7 +678,7 @@ public final class Mos4j {
          * @param onChunk 增量回调（可空 = 丢弃增量）
          * @return this
          */
-        public Builder onChunk(java.util.function.Consumer<net.hegq.mos4j.model.StreamChunk> onChunk) {
+        public Builder onChunk(java.util.function.Consumer<net.hegq.mos4j.model.chat.StreamChunk> onChunk) {
             this.onChunk = onChunk;
             return this;
         }
@@ -889,7 +890,7 @@ public final class Mos4j {
          * @param models 目录项（保序）
          * @return this
          */
-        public Builder models(List<net.hegq.mos4j.model.ModelOption> models) {
+        public Builder models(List<ModelOption<ChatModel>> models) {
             this.models = models;
             return this;
         }
@@ -1040,7 +1041,7 @@ public final class Mos4j {
             // 模型覆盖的校验接**模型目录**：声明了却不在目录里 → 装配期报错
             // （声明了却没装 = 假能力，不静默降级到父模型）。
             if (subAgentDirs != null && !subAgentDirs.isEmpty()) {
-                final List<net.hegq.mos4j.model.ModelOption> catalogModels =
+                final List<ModelOption<ChatModel>> catalogModels =
                         models == null ? List.of() : List.copyOf(models);
                 net.hegq.mos4j.tool.subagent.SubAgentCatalog subAgents =
                         net.hegq.mos4j.tool.subagent.SubAgentCatalog.load(

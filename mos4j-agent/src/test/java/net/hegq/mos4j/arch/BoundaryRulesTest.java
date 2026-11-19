@@ -1,8 +1,8 @@
 package net.hegq.mos4j.arch;
 
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.Role;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.Role;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;
 import net.hegq.mos4j.session.Projection;
@@ -91,9 +91,9 @@ class BoundaryRulesTest {
 
     /** 共享值类型：日志与协议必须是同一批类（各自一份 DTO 就是分家）。 */
     private static final List<String> SHARED_VALUE_TYPES = List.of(
-            "net.hegq.mos4j.model.Message",
-            "net.hegq.mos4j.model.Role",
-            "net.hegq.mos4j.model.ToolCall",
+            "net.hegq.mos4j.model.chat.Message",
+            "net.hegq.mos4j.model.chat.Role",
+            "net.hegq.mos4j.model.chat.ToolCall",
             "net.hegq.mos4j.model.Usage",
             "net.hegq.mos4j.model.InputTokenDetails",
             "net.hegq.mos4j.model.OutputTokenDetails");

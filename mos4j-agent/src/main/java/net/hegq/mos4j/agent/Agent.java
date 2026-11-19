@@ -12,8 +12,9 @@ import net.hegq.mos4j.driver.RunContext;
 import net.hegq.mos4j.fs.FileSystemBoundary;
 import net.hegq.mos4j.fs.Root;
 import net.hegq.mos4j.fs.RootSet;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.StreamChunk;
+import net.hegq.mos4j.model.catalog.ModelOption;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.StreamChunk;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;
 import net.hegq.mos4j.session.Session;
@@ -484,7 +485,7 @@ public final class Agent implements AutoCloseable {
      *
      * @return 目录项
      */
-    public List<net.hegq.mos4j.model.ModelOption> models() {
+    public List<ModelOption<ChatModel>> models() {
         ModelCatalog catalog = config.modelCatalog();
         return catalog == null ? List.of() : catalog.list();
     }
@@ -647,7 +648,7 @@ public final class Agent implements AutoCloseable {
         if (config.modelCatalog() != null) {
             // 目录只报 ID 与展示名——凭据留在模型对象里，不进快照。
             StringBuilder catalog = new StringBuilder();
-            for (net.hegq.mos4j.model.ModelOption option : config.modelCatalog().list()) {
+            for (ModelOption<ChatModel> option : config.modelCatalog().list()) {
                 if (catalog.length() > 0) {
                     catalog.append("，");
                 }

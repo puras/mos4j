@@ -1,9 +1,9 @@
 package net.hegq.mos4j.context;
 
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.Message;
 
 import java.util.List;
 

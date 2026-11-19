@@ -121,12 +121,12 @@ class SessionTest {
                 .toolResult(new ToolResult("call_1", "结果", false))
                 .build());
 
-        List<net.hegq.mos4j.model.Message> messages = session.messages();
+        List<net.hegq.mos4j.model.chat.Message> messages = session.messages();
 
         assertEquals(3, messages.size());
-        assertEquals(net.hegq.mos4j.model.Role.USER, messages.get(0).role());
-        assertEquals(net.hegq.mos4j.model.Role.ASSISTANT, messages.get(1).role());
-        assertEquals(net.hegq.mos4j.model.Role.TOOL, messages.get(2).role());
+        assertEquals(net.hegq.mos4j.model.chat.Role.USER, messages.get(0).role());
+        assertEquals(net.hegq.mos4j.model.chat.Role.ASSISTANT, messages.get(1).role());
+        assertEquals(net.hegq.mos4j.model.chat.Role.TOOL, messages.get(2).role());
         assertEquals("call_1", messages.get(2).toolCallId());
         assertFalse(messages.get(2).toolCalls() != null && !messages.get(2).toolCalls().isEmpty());
     }

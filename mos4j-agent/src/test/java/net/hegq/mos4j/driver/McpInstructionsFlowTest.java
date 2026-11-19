@@ -3,12 +3,12 @@ package net.hegq.mos4j.driver;
 import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamEmitter;
-import net.hegq.mos4j.model.Message;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamEmitter;
+import net.hegq.mos4j.model.chat.Message;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;
@@ -109,7 +109,7 @@ class McpInstructionsFlowTest {
 
         boolean found = false;
         for (Message message : model.requests.get(0)) {
-            if (message.role() == net.hegq.mos4j.model.Role.USER
+            if (message.role() == net.hegq.mos4j.model.chat.Role.USER
                     && message.content() != null && message.content().contains("甲服务器的说明")) {
                 found = true;
             }
@@ -129,7 +129,7 @@ class McpInstructionsFlowTest {
         agent.run(session, "你好");
 
         for (Message message : model.requests.get(0)) {
-            if (message.role() == net.hegq.mos4j.model.Role.SYSTEM) {
+            if (message.role() == net.hegq.mos4j.model.chat.Role.SYSTEM) {
                 assertFalse(message.content() != null && message.content().contains("甲服务器的说明"),
                         "说明走 user 侧：系统提示词是装配期渲染一次的静态内容（保 prompt cache）");
             }

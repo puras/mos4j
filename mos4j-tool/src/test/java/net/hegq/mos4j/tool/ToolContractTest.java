@@ -119,7 +119,7 @@ class ToolContractTest {
     @Test
     @DisplayName("模型可见工具名清单冻结（14 个，skill 为条件注册）")
     void toolNamesAreFrozen() {
-        List<String> actual = registry.list().stream().map(net.hegq.mos4j.model.Tool::name).toList();
+        List<String> actual = registry.list().stream().map(net.hegq.mos4j.model.chat.Tool::name).toList();
 
         assertEquals(FROZEN_NAMES, actual);
     }
@@ -157,7 +157,7 @@ class ToolContractTest {
         expected.put("web_fetch", List.of("url"));
         expected.put("skill", List.of("name"));
 
-        for (net.hegq.mos4j.model.Tool tool : registry.list()) {
+        for (net.hegq.mos4j.model.chat.Tool tool : registry.list()) {
             @SuppressWarnings("unchecked")
             Map<String, Object> properties = (Map<String, Object>) tool.parameters().get("properties");
             List<String> actual = new ArrayList<>(properties == null ? List.of() : properties.keySet());
@@ -184,7 +184,7 @@ class ToolContractTest {
         expected.put("web_fetch", List.of("url"));
         expected.put("skill", List.of("name"));
 
-        for (net.hegq.mos4j.model.Tool tool : registry.list()) {
+        for (net.hegq.mos4j.model.chat.Tool tool : registry.list()) {
             @SuppressWarnings("unchecked")
             List<String> required = (List<String>) tool.parameters().get("required");
             assertEquals(expected.get(tool.name()), required == null ? List.of() : required,
@@ -195,7 +195,7 @@ class ToolContractTest {
     @Test
     @DisplayName("schema 不含 title / $defs（部分服务端会拒）")
     void schemasHaveNoTitleOrDefs() {
-        for (net.hegq.mos4j.model.Tool tool : registry.list()) {
+        for (net.hegq.mos4j.model.chat.Tool tool : registry.list()) {
             assertTrue(!tool.parameters().containsKey("title"), tool.name() + " 的 schema 不该有 title");
             assertTrue(!tool.parameters().containsKey("$defs"), tool.name() + " 的 schema 不该有 $defs");
         }
@@ -204,7 +204,7 @@ class ToolContractTest {
     @Test
     @DisplayName("web_search 的 queries 是字符串数组（对齐 Go 的 Queries []string）")
     void webSearchQueriesIsAnArrayOfStrings() {
-        net.hegq.mos4j.model.Tool webSearch = registry.list().stream()
+        net.hegq.mos4j.model.chat.Tool webSearch = registry.list().stream()
                 .filter(tool -> "web_search".equals(tool.name()))
                 .findFirst()
                 .orElseThrow();

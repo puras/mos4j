@@ -1,6 +1,6 @@
 package net.hegq.mos4j.execpath;
 
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 
 /**
  * 一次工具调用的执行结果。

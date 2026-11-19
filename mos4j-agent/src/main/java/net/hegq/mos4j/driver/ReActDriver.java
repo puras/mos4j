@@ -6,7 +6,7 @@ import net.hegq.mos4j.core.CancellationToken;
 import net.hegq.mos4j.core.ToolContext;
 import net.hegq.mos4j.execpath.ExecPath;
 import net.hegq.mos4j.execpath.Outcome;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;
 import net.hegq.mos4j.session.Session;
@@ -163,7 +163,7 @@ public final class ReActDriver implements LoopDriver {
                 }
                 // 工具清单每轮决策前重新组装：上一轮激活的 deferred 工具本轮进入清单
                 // （「激活下一轮生效」的落点）；schema 取注册时缓存，重组装不走反射。
-                List<net.hegq.mos4j.model.Tool> defs =
+                List<net.hegq.mos4j.model.chat.Tool> defs =
                         rt.tools() == null ? List.of() : rt.tools().list();
                 action = decide(rt, session, defs, cancellation);
             } catch (CancellationException ignored) {
@@ -343,7 +343,7 @@ public final class ReActDriver implements LoopDriver {
     }
 
     /** 决策：走流式还是非流式。 */
-    private Action decide(RunContext rt, Session session, List<net.hegq.mos4j.model.Tool> defs,
+    private Action decide(RunContext rt, Session session, List<net.hegq.mos4j.model.chat.Tool> defs,
                           CancellationToken cancellation) {
         if (rt.stream() && rt.planner() instanceof ReActPlanner react) {
             return react.nextActionStream(rt.history(session), defs,

@@ -3,15 +3,15 @@ package net.hegq.mos4j.driver;
 import net.hegq.mos4j.agent.Agent;
 import net.hegq.mos4j.agent.Config;
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.Capability;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamChunk;
-import net.hegq.mos4j.model.StreamEmitter;
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.Role;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.Capability;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamChunk;
+import net.hegq.mos4j.model.chat.StreamEmitter;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.Role;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.model.Usage;
 import net.hegq.mos4j.session.Event;
 import net.hegq.mos4j.session.EventKind;
@@ -174,7 +174,7 @@ class ReActDriverTest {
         agent.run(new Session("s1", null), "读一下");
 
         assertEquals(1, model.requests.size());
-        List<net.hegq.mos4j.model.Tool> tools = model.requests.get(0).tools();
+        List<net.hegq.mos4j.model.chat.Tool> tools = model.requests.get(0).tools();
         assertTrue(tools != null && !tools.isEmpty(),
                 "工具定义必须进请求——漏了模型根本不知道有 read");
         assertEquals("read", tools.get(0).name());

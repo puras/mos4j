@@ -1,8 +1,8 @@
 package net.hegq.mos4j.session;
 
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.Role;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.Role;
+import net.hegq.mos4j.model.chat.ToolCall;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

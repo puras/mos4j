@@ -1,8 +1,8 @@
 package net.hegq.mos4j.driver;
 
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.Tool;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.Tool;
 
 import java.util.List;
 

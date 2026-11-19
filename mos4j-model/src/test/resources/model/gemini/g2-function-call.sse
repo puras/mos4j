@@ -1,4 +1,6 @@
 # G2 functionCall 流 — 程序化抽取自 Go TestChatStreamToolCall（gemini_test.go），保证逐字一致
 # 断言：id=fc_1; name=calculator; args 为完整 JSON 对象序列化；finishReason=STOP
+# 注：2026-11 规范化为事件间空行分隔（真实 SSE 帧格式）
 data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"id":"fc_1","name":"calculator","args":{}}}]}}]}
+
 data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"id":"fc_1","name":"calculator","args":{"a":1,"b":2}}}]},"finishReason":"STOP"}]}

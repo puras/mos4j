@@ -13,7 +13,7 @@ import net.hegq.mos4j.hook.ApprovalChannel;
 import net.hegq.mos4j.hook.GuardBus;
 import net.hegq.mos4j.hook.HookBus;
 import net.hegq.mos4j.hook.PostHook;
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.sdk.Mos4j;
 import net.hegq.mos4j.sandbox.PathScopeProbe;
 import net.hegq.mos4j.session.JsonlPersistence;

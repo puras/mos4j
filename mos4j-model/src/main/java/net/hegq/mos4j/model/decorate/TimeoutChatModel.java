@@ -1,11 +1,11 @@
 package net.hegq.mos4j.model.decorate;
 
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.ChatModel;
+import net.hegq.mos4j.model.chat.ChatModel;
 import net.hegq.mos4j.model.ModelTimeoutException;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamEmitter;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamEmitter;
 
 import java.time.Duration;
 import java.util.concurrent.CancellationException;

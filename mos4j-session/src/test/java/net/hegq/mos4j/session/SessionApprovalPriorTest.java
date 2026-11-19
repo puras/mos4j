@@ -2,7 +2,7 @@ package net.hegq.mos4j.session;
 
 import net.hegq.mos4j.core.ApprovalOutcome;
 import net.hegq.mos4j.core.ApprovalPrior;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;

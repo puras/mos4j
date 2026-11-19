@@ -1,12 +1,12 @@
 package net.hegq.mos4j.driver;
 
 import net.hegq.mos4j.core.CancellationToken;
-import net.hegq.mos4j.model.ChatModel;
-import net.hegq.mos4j.model.Request;
-import net.hegq.mos4j.model.Response;
-import net.hegq.mos4j.model.StreamChunk;
-import net.hegq.mos4j.model.Message;
-import net.hegq.mos4j.model.Tool;
+import net.hegq.mos4j.model.chat.ChatModel;
+import net.hegq.mos4j.model.chat.Request;
+import net.hegq.mos4j.model.chat.Response;
+import net.hegq.mos4j.model.chat.StreamChunk;
+import net.hegq.mos4j.model.chat.Message;
+import net.hegq.mos4j.model.chat.Tool;
 
 import java.util.List;
 import java.util.function.Consumer;

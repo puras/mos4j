@@ -8,7 +8,7 @@ import net.hegq.mos4j.core.ApprovalResult;
 import net.hegq.mos4j.hook.ApprovalChannel;
 import net.hegq.mos4j.hook.GuardBus;
 import net.hegq.mos4j.hook.GuardDecision;
-import net.hegq.mos4j.model.ToolCall;
+import net.hegq.mos4j.model.chat.ToolCall;
 import net.hegq.mos4j.tool.FunctionTool;
 import net.hegq.mos4j.tool.Tool;
 import net.hegq.mos4j.tool.ToolRegistry;
